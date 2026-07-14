@@ -2,8 +2,8 @@ import { IsDateString, IsUUID } from 'class-validator';
 
 export class CreateBookingDto {
   @IsUUID()
-  listingId: string;
+  listingId!: string;
 
   @IsDateString()
-  moveInDate: string;
+  moveInDate!: string;
 }

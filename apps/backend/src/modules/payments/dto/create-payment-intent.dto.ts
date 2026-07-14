@@ -3,8 +3,8 @@ import { PaymentGateway } from '../../../common/enums/payment-gateway.enum';
 
 export class CreatePaymentIntentDto {
   @IsUUID()
-  bookingId: string;
+  bookingId!: string;
 
   @IsEnum(PaymentGateway)
-  gateway: PaymentGateway;
+  gateway!: PaymentGateway;
 }
