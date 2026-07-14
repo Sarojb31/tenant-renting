@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "path=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); case \"$path\" in */apps/backend/*.ts) if [ -d apps/backend/node_modules ]; then npx --prefix apps/backend jest --findRelatedTests \"$path\" --passWithNoTests --silent; else echo \"[hook:PostToolUse] backend skip — pnpm install not run\"; fi ;; */apps/customer-web/*.tsx) if [ -d apps/customer-web/node_modules ]; then npx --prefix apps/customer-web vitest related \"$path\" --run --passWithNoTests; else echo \"[hook:PostToolUse] customer-web skip — pnpm install not run\"; fi ;; */apps/admin-console/*.tsx) if [ -d apps/admin-console/node_modules ]; then npx --prefix apps/admin-console vitest related \"$path\" --run --passWithNoTests; else echo \"[hook:PostToolUse] admin-console skip — pnpm install not run\"; fi ;; esac"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -d apps/backend/node_modules ]; then cd apps/backend && npm run build --silent 2>&1 | tail -5 && npm test --silent -- --passWithNoTests; else echo '[hook:Stop] backend skipped — run pnpm install first'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -d apps/customer-web/node_modules ]; then cd apps/customer-web && npm run build --silent 2>&1 | tail -5 && npm run test -- --run --passWithNoTests --silent; else echo '[hook:Stop] customer-web skipped — run pnpm install first'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -d apps/admin-console/node_modules ]; then cd apps/admin-console && npm run build --silent 2>&1 | tail -5 && npm run test -- --run --passWithNoTests --silent; else echo '[hook:Stop] admin-console skipped — run pnpm install first'; fi"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "rampstack-starter@rampstack": true,
+    "frontend-design@claude-plugins-official": true
+  }
+}

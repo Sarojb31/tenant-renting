@@ -1,0 +1,788 @@
+# RoomFinder SaaS — Product & Development Document
+
+**Product Type:** Multi-tenant SaaS platform for room-finding / room-rental companies
+**Prepared for:** Product planning, architecture, and development handoff
+**Version:** 2.0 — Finalized for development
+
+---
+
+## 1. Executive Summary
+
+RoomFinder SaaS is a subscription-based platform that room-finder/room-rental companies (PG operators, hostel networks, brokers, rental agencies) can sign up for to run their entire business online. A company using the platform can:
+
+- List and manage rooms/properties with photos, pricing, and availability
+- Manage customer inquiries, leads, and bookings (mini-CRM)
+- Accept and track payments (bookings, deposits, subscription fees)
+- Automatically match customers to newly listed rooms based on saved preferences and notify them instantly via **SMS** (through a third-party SMS gateway)
+- Give their own customers a branded web frontend to search, browse, and book rooms
+
+Because it is built as a **SaaS**, each room-finder company operates as an isolated "tenant" with its own data, branding, staff accounts, and subscription plan — while Anthropic-style shared infrastructure keeps hosting/maintenance centralized for you as the platform owner.
+
+---
+
+## 1.1 Finalized Scope Decisions (v1.1)
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Backend | NestJS | Structured, TypeScript-first, good fit for multi-tenant modular architecture |
+| Frontend | React (PWA) | Installable, offline-capable, no separate native codebase needed for MVP |
+| Native apps (iOS/Android) | **Deferred.** Add Expo/React Native later only if app-store presence becomes a requirement | PWA covers install-to-home-screen, push notifications, offline caching for MVP |
+| Facebook Marketplace | **No direct posting/message-sync integration** — no free/open API exists for either (see 4.12) | Meta's Marketplace Partner API is a gated approval program, not self-serve; Marketplace chat is tied to personal profile and isn't exposed via any Messenger API |
+| Launch markets | Nepal + International | Requires dual payment gateways, dual SMS providers, and multi-currency support from the data-model level |
+
+---
+
+## 2. Target Users & Personas
+
+| Persona | Who they are | What they need from the platform |
+|---|---|---|
+| **Platform Owner (You)** | Runs the SaaS business, sells to room-finder companies | Tenant management, billing, usage analytics, uptime |
+| **Company Admin** | Owner/manager of a room-finder company (tenant) | Dashboard to manage listings, staff, customers, revenue |
+| **Staff / Agent** | Employees or field agents of the tenant company | Add/update listings, respond to leads, log site visits |
+| **End Customer** | Person looking for a room | Search rooms, filter by budget/location, get notified by SMS when a match appears, pay booking/advance online |
+| **Property Owner (optional 2-sided model)** | Owner of the room/property being listed | Submit their room, track inquiries, get paid |
+
+---
+
+## 3. High-Level System Architecture
+
+```
+                        ┌────────────────────────┐
+                        │   Super Admin Panel     │  (You – SaaS owner)
+                        │  Tenant & billing mgmt  │
+                        └───────────┬─────────────┘
+                                    │
+                     ┌──────────────┴───────────────┐
+                     │   Multi-Tenant Core Backend    │
+                     │  (Auth, Listings, CRM, Billing) │
+                     └───────┬───────────────┬────────┘
+                             │               │
+                 ┌───────────┘               └───────────┐
+        ┌────────▼─────────┐               ┌────────────▼───────────┐
+        │  Company Admin    │               │   Customer Web/App     │
+        │  Dashboard (per    │               │   Frontend (per tenant, │
+        │  tenant)           │               │   branded)              │
+        └────────┬──────────┘               └────────────┬────────────┘
+                  │                                       │
+      ┌───────────┴──────────┐              ┌─────────────┴─────────────┐
+      │  Payment Gateway API  │              │   Matching Engine → SMS    │
+      │  (Stripe/eSewa/Khalti)│              │   Gateway API (Twilio/     │
+      └───────────────────────┘              │   Sparrow SMS/etc.)        │
+                                              └────────────────────────────┘
+```
+
+**Key architectural principle:** Multi-tenancy at the database or schema level, so each room-finder company's listings, customers, and payments are logically isolated even though they share the same application codebase and infrastructure.
+
+---
+
+## 4. Core Modules
+
+### 4.1 Multi-Tenant & Super Admin Module
+**Purpose:** Lets you (the SaaS owner) onboard new room-finder companies, control subscription plans, and monitor platform health.
+
+**Features:**
+- Tenant sign-up / onboarding wizard (company profile, subdomain e.g. `abc.roomfinder.com`, branding/logo/colors)
+- Subscription plan assignment (Free trial, Basic, Pro, Enterprise)
+- Usage metering (number of listings, SMS credits used, active customers)
+- Tenant suspension/activation, impersonation for support
+- Platform-wide analytics (revenue, churn, active tenants)
+- Global feature flags (enable/disable modules per plan, e.g. SMS add-on only for Pro+)
+
+### 4.2 Company Admin Dashboard
+**Purpose:** The main workspace for each room-finder company to run day-to-day operations.
+
+**Features:**
+- Overview dashboard: active listings, new leads, pending payments, SMS credits remaining
+- Staff/agent account management with role-based permissions
+- Company profile & branding settings (logo, contact info, theme color for their customer frontend)
+- Notification settings (which events trigger SMS/email)
+- Reports export (CSV/PDF) for listings, customers, revenue
+
+### 4.3 Room / Property Listing Management
+**Purpose:** Core inventory module — where rooms/properties are created and maintained.
+
+**Features:**
+- Add/edit/delete room listings: title, description, rent, deposit, room type (single/shared/PG/apartment), amenities (WiFi, parking, attached bathroom, furnished, etc.)
+- Multi-image upload with gallery, optional 360°/virtual tour add-on
+- Location capture with map pin (Google Maps/OpenStreetMap) and address autocomplete
+- Availability calendar (available from date, occupied/vacant status)
+- Categorization & tagging (near college, near hospital, bachelor-friendly, family-friendly)
+- Bulk upload via CSV for companies with large inventories
+- Listing approval workflow (draft → pending review → published) if the company wants quality control
+- Auto-expiry/renewal reminders for stale listings
+
+### 4.4 Customer Management (Mini-CRM)
+**Purpose:** Track every person who interacts with the company, from first inquiry to booking.
+
+**Features:**
+- Customer profile: contact info, budget range, preferred location(s), room type preference, move-in date
+- Lead capture from website inquiry forms, walk-ins (manual entry), or phone
+- Lead status pipeline (New → Contacted → Site Visit Scheduled → Negotiating → Booked/Lost)
+- Saved search preferences per customer (used by the Matching Engine below)
+- Interaction log/notes per customer (calls, visits, messages)
+- Duplicate detection (same phone/email)
+- Customer segmentation for targeted SMS campaigns (e.g. "all customers looking in Baneshwor under NPR 8,000")
+
+### 4.5 Matching Engine & Smart Notification Trigger
+**Purpose:** The differentiating feature — when a new room is listed (or a room's status changes to vacant), the system automatically checks which customers' saved preferences match it, and triggers an SMS.
+
+**Features:**
+- Rule-based matching (location, budget range, room type, amenities) with configurable weight/priority
+- Real-time trigger on new listing creation or listing update
+- Batch/daily digest mode as an alternative to instant SMS (configurable by company)
+- Matching log/audit trail (which customers were notified for which listing, and when)
+- Opt-in/opt-out preference per customer (compliance with SMS marketing rules)
+- Future extensibility for AI-based ranking (see Add-ons)
+
+### 4.6 SMS Notification Module (Third-Party Gateway Integration)
+**Purpose:** Sends the actual SMS to customers, via a pluggable third-party provider.
+
+**Features:**
+- Adapter-based integration so any SMS gateway can be plugged in — **finalized for dual-market launch:** Sparrow SMS/Aakash SMS as the primary provider for `+977` (Nepal) numbers for reliable local delivery, and Twilio (or equivalent) for international numbers, with automatic routing by number prefix
+- Template management (e.g. "New room found near {location} for NPR {price}! Reply YES to schedule a visit.")
+- SMS credit/wallet system per tenant — companies buy SMS credit bundles or it's bundled into subscription tier
+- Delivery status tracking (sent/delivered/failed) and retry logic
+- Two-way SMS support (optional) so customers can reply to confirm interest
+- Rate limiting & spam-prevention safeguards
+- Fallback to email/push notification if SMS fails or customer has no phone verified
+
+### 4.7 Payment & Billing Module
+**Purpose:** Handles two separate money flows: (a) the SaaS subscription the tenant pays you, and (b) the booking/deposit payments the tenant's customers pay them.
+
+**Features:**
+- **Platform-level billing:** subscription invoicing, plan upgrades/downgrades, dunning for failed payments, tenant billing history
+- **Tenant-level payments:** booking fee/advance/deposit collection from end customers, invoice/receipt generation, refund handling
+- Multiple payment gateway support — **finalized for dual-market launch:** eSewa, Khalti, and Fonepay for Nepal + Stripe/PayPal for international, routed via a single payment-gateway abstraction based on tenant/customer currency
+- Multi-currency support (NPR + at least USD) built into the pricing/listing data model from day one, even if the UI ships with one default locale first
+- Commission/service-fee calculation if the platform takes a cut of bookings (optional revenue model)
+- Payment status dashboard, reconciliation reports
+- Webhook handling for async payment confirmation
+
+### 4.8 Customer-Facing Frontend (Web + Mobile-responsive)
+**Purpose:** The branded storefront each room-finder company's customers use.
+
+**Features:**
+- Search & filter (location, price range, room type, amenities, move-in date)
+- Map view + list view toggle
+- Room detail page with gallery, amenities, nearby landmarks, "Enquire" / "Book Visit" CTA
+- Customer account: save preferences, favorite listings, view booking/payment history, manage SMS notification preferences
+- Online booking/reservation flow with payment integration
+- Reviews & ratings on rooms/properties
+- Company-specific branding (logo, colors, custom domain/subdomain) pulled from tenant settings
+- **Built as a Progressive Web App (PWA):** React + Vite (`vite-plugin-pwa`) or Next.js (`next-pwa`) with a web app manifest and service worker — installable to home screen, offline shell caching, and push notifications, without a separate native codebase. Native iOS/Android apps (via Expo/React Native) are explicitly deferred until app-store presence is needed.
+
+### 4.9 Authentication & Role-Based Access Control
+**Purpose:** Secure, role-appropriate access across all the above modules.
+
+**Features:**
+- Roles: Super Admin, Company Admin, Staff/Agent, Property Owner (optional), Customer
+- Email/phone OTP-based login for customers; password + optional 2FA for admin/staff
+- JWT/session-based auth with tenant-scoped permissions
+- Social login option (Google) for customer convenience
+
+### 4.10 Analytics & Reporting
+**Purpose:** Give both you and each tenant visibility into performance.
+
+**Features:**
+- For tenants: listing performance (views, inquiries, conversion rate), lead funnel, revenue reports, SMS delivery/engagement rate
+- For you (platform): MRR/ARR, tenant growth, churn rate, feature usage, SMS volume across platform
+- Exportable reports and dashboard charts
+
+### 4.11 Support & Communication
+**Purpose:** Keep the loop closed between customer, tenant staff, and platform support.
+
+**Features:**
+- In-app enquiry/chat between customer and company staff
+- Ticketing system for tenants to raise support requests with you (the SaaS provider)
+- Automated email/SMS confirmations for key events (booking confirmed, payment received)
+
+### 4.12 Facebook Distribution Add-on (Page-based, not Marketplace API)
+**Purpose:** Give tenants extra reach on Facebook without depending on an integration that doesn't officially exist.
+
+**Why not a direct Marketplace integration:**
+- Facebook Marketplace has no free/open API for posting listings — the only path is Meta's **Marketplace Partner Item API**, which requires formal approval as a commerce partner (not self-serve, geographically restricted, aimed at large catalogs).
+- Facebook Marketplace **buyer/seller chats are tied to the seller's personal profile inbox**, and are not exposed by the Messenger Platform's Send/Receive API or Conversations API under any circumstance. There is no way to pull Marketplace messages into this platform.
+
+**What we build instead:**
+- A "Share to Facebook" action on each listing that generates a pre-formatted post (title, price, photos, description) with a link/CTA that routes interested buyers to message the **tenant's Facebook Page** rather than a personal profile
+- Staff still does the actual posting to Marketplace manually (low effort, avoids ToS risk from automation/scraping)
+- Because **Page messaging is fully supported** by the official Messenger Platform API, leads that land in the Page inbox *can* be captured via webhook and pushed into the Customer Management (CRM) module and Matching Engine automatically — giving most of the practical benefit of "Marketplace integration" through a channel that's actually API-reachable
+- Scoped as a **Phase 3 add-on**, not part of MVP
+
+---
+
+## 5. Add-On / Premium Modules (Upsell Opportunities)
+
+These are monetizable extras you can gate behind higher subscription tiers:
+
+| Add-on | Description |
+|---|---|
+| **WhatsApp Business API integration** | Send notifications/matches via WhatsApp in addition to SMS |
+| **AI-based smart matching** | Use ML to rank matches by likelihood-to-convert, not just rule-based filters |
+| **Virtual tour / 360° photos** | Richer listing media for premium properties |
+| **Roommate-matching** | Let customers who want to share a room find compatible roommates |
+| **Verification/KYC badge** | Verify property owners/listings to build trust ("Verified Listing") |
+| **Broker/agent commission tracking** | If tenant works with external brokers, track and pay commissions automatically |
+| **Automated rent reminders** | Recurring SMS/email reminders to tenants' customers for rent due dates (useful if the room-finder company also manages ongoing rent collection) |
+| **Multi-language support** | Localize the customer frontend and SMS templates |
+| **Native mobile apps** | iOS/Android apps beyond the responsive web/PWA |
+| **Custom domain mapping** | Let a tenant use their own domain instead of a subdomain |
+| **API access** | Let larger tenants integrate the platform with their own external tools |
+
+---
+
+## 6. Suggested SaaS Subscription Tiers
+
+| Tier | Target | Includes |
+|---|---|---|
+| **Starter (Free/Trial)** | New/small companies testing the platform | Up to 20 listings, 1 admin user, no SMS (email only), basic branding |
+| **Basic** | Small room-finder companies | Up to 150 listings, 3 staff accounts, limited SMS credits/month, payment integration |
+| **Pro** | Growing companies | Unlimited listings, unlimited staff, higher SMS credit bundle, analytics, custom branding |
+| **Enterprise** | Large multi-branch companies | All Pro features + API access, custom domain, dedicated support, AI matching add-on, white-labeling |
+
+*(SMS is naturally a metered/consumption cost since third-party SMS gateways charge per message — pricing this as credits/bundles on top of a base subscription protects your margins.)*
+
+---
+
+## 7. Recommended Tech Stack
+
+| Layer | Recommendation | Notes |
+|---|---|---|
+| Frontend (Customer PWA) | React + Vite (`vite-plugin-pwa`) — **finalized** | SPA with installable PWA; Next.js/SSR considered but not needed for MVP — revisit only if organic search SEO on listing pages becomes a priority |
+| Frontend (Admin Console) | React + Vite, shared component library with the customer app | Covers both Company Admin and Super Admin, gated by role |
+| Admin/Super-Admin Framework | Refine (headless) + shadcn/ui + TanStack Table | Auto-generates CRUD screens from the NestJS API; see Section 15.1 for rationale |
+| Backend API | NestJS — **finalized** | Modular, TypeScript-first, strong fit for multi-tenant guards/interceptors |
+| Database | PostgreSQL | Row-level multi-tenancy via `tenant_id` (see Section 17), strong relational integrity for bookings/payments |
+| Cache/Queue | Redis + BullMQ | For async SMS sending, matching engine jobs, notifications, rent reminders |
+| SMS Gateway | Sparrow SMS/Aakash SMS (Nepal) + Twilio (international) — **finalized dual-provider**, adapter pattern with routing by phone prefix | See Section 16 for adapter interface |
+| Payments | eSewa/Khalti/Fonepay (Nepal) + Stripe/PayPal (international) — **finalized dual-gateway**, adapter pattern | See Section 16 for adapter interface |
+| File/Image Storage | AWS S3 / Cloudflare R2 | For listing photos, documents |
+| Hosting/Infra | Docker containers on AWS ECS Fargate or GCP Cloud Run + CI/CD (GitHub Actions) | Avoids full Kubernetes overhead at this scale; API, worker, and frontends scale independently |
+| Maps | Google Maps API or OpenStreetMap/Mapbox | For location pin, search-by-map |
+| Monitoring | Sentry + Grafana/Prometheus | Track errors and SMS/payment delivery health |
+
+---
+
+## 8. High-Level Data Model (Key Entities)
+
+- **Tenant** (company) → has many **Users** (admin/staff), **Listings**, **Customers**, **SubscriptionPlan**
+- **Listing** (room/property) → belongs to Tenant, has many Images, Amenities, has one Location
+- **Customer** → belongs to Tenant, has one SavedPreference, has many Bookings, Inquiries
+- **Booking** → belongs to Customer + Listing, has one Payment
+- **Payment** → polymorphic: can belong to Booking (tenant-level) or Subscription (platform-level)
+- **SMSLog** → belongs to Tenant + Customer + Listing (match event), tracks status
+- **SubscriptionPlan** → defines feature limits per Tenant
+
+*(This is the conceptual model. See Section 12 for the concrete, field-level PostgreSQL schema ready for migration files.)*
+
+---
+
+## 9. Development Roadmap
+
+### Phase 0 — Discovery & Setup (2–3 weeks)
+- Finalize requirements, wireframes/UI design (Figma), finalize tech stack
+- Set up multi-tenant architecture skeleton, CI/CD, staging environment
+- Choose and contract SMS gateway + payment gateway providers
+
+### Phase 1 — MVP (8–10 weeks)
+- Tenant onboarding (basic, manual approval OK for MVP)
+- Room listing CRUD + image upload
+- Customer capture + saved preferences (basic CRM)
+- Rule-based matching engine (synchronous, simple filter match)
+- SMS integration (single provider) triggered on match
+- Basic payment integration (one gateway) for bookings
+- Customer-facing frontend: search, listing detail, enquiry form
+- Company admin dashboard: listings, leads, basic reports
+- **Goal:** Onboard 2–3 pilot room-finder companies
+
+### Phase 2 — Core SaaS Hardening (6–8 weeks)
+- Super Admin panel: tenant management, subscription plans, usage metering
+- Billing module: subscription invoicing, plan limits enforcement
+- SMS credit/wallet system, delivery tracking, templates
+- Role-based access control refinement (staff/agent roles)
+- Analytics dashboards (tenant + platform level)
+- Booking calendar/availability management
+
+### Phase 3 — Growth Features (6–8 weeks)
+- Multiple SMS/payment gateway support (localization by country)
+- Reviews & ratings, favorites, saved searches on customer frontend
+- Custom branding per tenant (theme, subdomain)
+- Support ticketing system
+- Bulk listing upload (CSV) for larger tenants
+- Facebook Page-based distribution: "Share to Facebook" listing generator + Page inbox webhook capture into CRM/Matching Engine (see Section 4.12)
+
+### Phase 4 — Premium Add-ons & Scale (ongoing)
+- WhatsApp integration, AI-based matching, virtual tours
+- Native mobile apps
+- API access for Enterprise tenants
+- Multi-language support
+- Performance optimization, load testing, advanced monitoring
+
+**Total estimated time to a solid, sellable v1 (Phases 0–2): ~4–5 months** with a small focused team (1 PM, 2 backend, 2 frontend, 1 designer, part-time QA). Phase 3–4 can run as continuous post-launch iterations based on paying-customer feedback.
+
+---
+
+## 10. Non-Functional Requirements
+
+- **Security:** Tenant data isolation, encrypted storage of payment/PII data, OWASP-compliant API, rate limiting on public endpoints
+- **Scalability:** Stateless API services behind a load balancer; SMS/matching jobs run in background workers/queues so spikes (e.g. many new listings at once) don't block the main app
+- **Compliance:** SMS opt-in/opt-out handling to respect anti-spam regulations; payment data handled via PCI-compliant gateways (never store raw card data yourself)
+- **Availability:** Target 99.5%+ uptime for a paid SaaS product; automated backups of the database
+- **Localization-readiness:** Currency, date, and language should be configurable per tenant from day one, even if only one locale ships at MVP
+
+---
+
+## 11. Key Risks & Mitigations
+
+| Risk | Mitigation |
+|---|---|
+| SMS delivery failures/costs spiral | Use adapter pattern to switch providers; set per-tenant SMS credit caps |
+| Multi-tenant data leakage | Enforce tenant_id scoping at the ORM/query level with automated tests |
+| Payment gateway compliance complexity | Use established gateways (Stripe/eSewa/Khalti) rather than building custom payment handling |
+| Feature creep delaying MVP | Lock Phase 1 scope strictly to the MVP list above; add-ons are explicitly deferred |
+| Low customer SMS opt-in due to spam concerns | Clear opt-in flow, useful/relevant message templates, easy opt-out |
+
+---
+
+## 12. Detailed Database Schema (PostgreSQL)
+
+Field-level schema, ready to translate into migration files. All tenant-scoped tables carry `tenant_id` for row-level isolation (see Section 17).
+
+**tenants**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| name | varchar | |
+| subdomain | varchar, unique | e.g. `abc` → `abc.roomfinder.com` |
+| custom_domain | varchar, nullable | Enterprise add-on |
+| logo_url, theme_color | varchar, nullable | |
+| country | varchar | primary operating country |
+| default_currency | varchar | NPR, USD, etc. |
+| status | enum(trial, active, suspended, cancelled) | |
+| created_at, updated_at | timestamp | |
+
+**subscription_plans**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| name | varchar | Starter/Basic/Pro/Enterprise |
+| max_listings, max_staff_users | int, nullable | null = unlimited |
+| sms_credits_included | int | |
+| price_monthly | decimal | |
+| price_currency | varchar | |
+| features | jsonb | feature-flag map |
+
+**tenant_subscriptions**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id | uuid, FK → tenants | |
+| plan_id | uuid, FK → subscription_plans | |
+| status | enum(active, past_due, cancelled) | |
+| current_period_start/end | timestamp | |
+| sms_credits_remaining | int | |
+
+**users** (staff/admin/super-admin)
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id | uuid, FK, nullable | null only for super_admin |
+| name, email, phone | varchar | email unique per tenant |
+| password_hash | varchar | bcrypt/argon2 |
+| role | enum(super_admin, company_admin, staff, agent) | |
+| status | enum(active, invited, disabled) | |
+| last_login_at | timestamp, nullable | |
+
+**customers**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id | uuid, FK | |
+| name, phone, email | varchar | phone unique per tenant |
+| phone_verified | boolean | via OTP |
+| sms_opt_in | boolean, default true | |
+| preferred_language | varchar | |
+
+**customer_preferences**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| customer_id | uuid, FK | |
+| locations | jsonb | array of area names/geo bounds |
+| budget_min, budget_max | decimal | |
+| room_type | enum(single, shared, pg, apartment, studio) | |
+| move_in_date | date, nullable | |
+| amenities_wanted | jsonb | array of amenity IDs |
+| active | boolean | used/paused by matching engine |
+
+**listings**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id | uuid, FK | |
+| title, description | varchar/text | |
+| room_type | enum(single, shared, pg, apartment, studio) | |
+| rent_amount, deposit_amount | decimal | |
+| currency | varchar | |
+| address, city | varchar | |
+| latitude, longitude | decimal | |
+| status | enum(draft, pending_review, published, occupied, archived) | |
+| available_from | date | |
+| created_by | uuid, FK → users | |
+
+**listing_images** — `id, listing_id (FK), url, sort_order`
+**amenities** — `id, name (unique)`
+**listing_amenities** — join table: `listing_id (FK), amenity_id (FK)`, composite PK
+
+**bookings**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id, listing_id, customer_id | uuid, FK | |
+| status | enum(pending, confirmed, cancelled, completed) | |
+| move_in_date | date | |
+| amount_due, amount_paid | decimal | |
+
+**payments**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id | uuid, FK, nullable | null for platform-level subscription payments |
+| payable_type | enum(booking, subscription) | polymorphic |
+| payable_id | uuid | references bookings.id or tenant_subscriptions.id |
+| gateway | enum(stripe, paypal, esewa, khalti, fonepay) | |
+| gateway_transaction_id | varchar | |
+| amount, currency | decimal/varchar | |
+| status | enum(pending, success, failed, refunded) | |
+| raw_response | jsonb | full gateway payload for audit |
+
+**sms_templates** — `id, tenant_id (nullable=platform default), name, body_text, event_trigger enum(new_match, booking_confirmed, rent_reminder, custom)`
+
+**sms_logs**
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid, PK | |
+| tenant_id, customer_id | uuid, FK | |
+| listing_id | uuid, FK, nullable | the match that triggered it |
+| template_id | uuid, FK, nullable | |
+| provider | enum(sparrow, aakash, twilio) | |
+| message_body | text | |
+| status | enum(queued, sent, delivered, failed) | |
+| provider_message_id | varchar, nullable | |
+| sent_at, delivered_at | timestamp, nullable | |
+
+**notifications** — `id, tenant_id, recipient_type(customer/user), recipient_id, channel enum(sms,email,push,in_app), status, payload jsonb`
+
+**reviews** — `id, tenant_id, listing_id, customer_id, rating (1-5), comment, created_at`
+
+**support_tickets** — `id, tenant_id (nullable), raised_by_user_id, subject, description, status enum(open,in_progress,resolved,closed)`
+
+**audit_logs** — `id, tenant_id (nullable), actor_user_id, action, entity_type, entity_id, metadata jsonb, created_at`
+
+**fb_page_leads** *(Phase 3)* — `id, tenant_id, fb_page_id, fb_sender_psid, message_text, matched_customer_id (nullable, FK), created_at`
+
+---
+
+## 13. Backend Architecture — NestJS Module & Folder Structure
+
+```
+src/
+  main.ts
+  app.module.ts
+  common/
+    guards/            (tenant.guard.ts, roles.guard.ts, jwt-auth.guard.ts)
+    interceptors/       (tenant-context.interceptor.ts, logging.interceptor.ts)
+    filters/            (http-exception.filter.ts)
+    decorators/         (current-user.decorator.ts, roles.decorator.ts)
+  config/               (configuration.ts, validation.schema.ts)
+  modules/
+    auth/               (JWT + OTP login, refresh tokens)
+    tenants/            (onboarding, settings, branding)
+    users/              (staff/admin accounts, RBAC)
+    listings/           (CRUD, images, amenities, availability)
+    customers/          (CRM, preferences)
+    matching-engine/    (rule evaluation, triggers SMS job)
+    sms/
+      adapters/         (sparrow-sms.adapter.ts, aakash-sms.adapter.ts, twilio.adapter.ts)
+      sms.service.ts     (routes to correct adapter, logs to sms_logs)
+    payments/
+      adapters/         (stripe.adapter.ts, esewa.adapter.ts, khalti.adapter.ts)
+      payments.service.ts
+    bookings/
+    subscriptions/       (plan enforcement, billing)
+    notifications/
+    reviews/
+    support/
+    facebook-integration/ (Phase 3: Page webhook receiver, lead capture)
+    analytics/
+    super-admin/          (platform-level: tenant management, metering)
+  database/
+    migrations/
+    seeds/
+jobs/                      (BullMQ processors: matching-dispatch, sms-dispatch, rent-reminders)
+```
+
+**Tenant context mechanism:** a request-scoped `TenantContextService` (backed by `AsyncLocalStorage`) resolves the tenant either from the request subdomain (customer/public routes) or from the JWT's `tenant_id` claim (admin/staff routes), and every tenant-scoped repository call is auto-filtered by it (see Section 17).
+
+---
+
+## 14. REST API Endpoint Map (Core Modules)
+
+| Method | Path | Module | Description | Auth |
+|---|---|---|---|---|
+| POST | /auth/otp/request | auth | Send OTP to customer phone | Public |
+| POST | /auth/otp/verify | auth | Verify OTP, issue tokens | Public |
+| POST | /auth/login | auth | Staff/admin email+password login | Public |
+| POST | /auth/refresh | auth | Refresh access token | Refresh token |
+| POST | /tenants | tenants | Onboard new tenant | Super Admin |
+| GET/PATCH | /tenants/:id | tenants | View/update tenant settings | Company Admin+ |
+| GET/POST | /listings | listings | List (public, filterable) / create | Public (GET) · Staff (POST) |
+| GET/PATCH/DELETE | /listings/:id | listings | View/update/delete a listing | Public (GET) · Staff |
+| POST | /listings/:id/images | listings | Upload listing images | Staff |
+| GET/POST | /customers | customers | List/create customer records | Staff |
+| PATCH | /customers/:id/preferences | customers | Update saved search preferences | Customer/Staff |
+| POST | /bookings | bookings | Create a booking | Customer/Staff |
+| PATCH | /bookings/:id | bookings | Update booking status | Staff |
+| POST | /payments/intent | payments | Create payment intent (routed to gateway) | Customer |
+| POST | /payments/webhook/:gateway | payments | Gateway webhook receiver | Public (signature-verified) |
+| GET | /sms/logs | sms | View SMS delivery logs | Company Admin |
+| POST | /sms/test | sms | Send a test SMS | Company Admin |
+| GET | /subscriptions/plans | subscriptions | List available plans | Public |
+| POST | /subscriptions/subscribe | subscriptions | Subscribe tenant to a plan | Company Admin |
+| GET | /super-admin/tenants | super-admin | List all tenants | Super Admin |
+| PATCH | /super-admin/tenants/:id/status | super-admin | Suspend/activate tenant | Super Admin |
+| GET | /analytics/overview | analytics | Dashboard metrics | Company Admin / Super Admin |
+| POST | /facebook/webhook | facebook-integration | Page message webhook (Phase 3) | Public (verify token) |
+
+*(This is the MVP-critical subset; each module will have additional supporting endpoints such as pagination, search filters, and bulk operations as it's built out.)*
+
+---
+
+## 15. Frontend Architecture — React PWA Structure
+
+Recommended as a monorepo (pnpm workspaces or Turborepo) with two deployable apps sharing a component library — separating them keeps the customer PWA's caching/installability concerns isolated from the admin console:
+
+```
+apps/
+  customer-web/         (Vite + React, PWA — public, tenant-themed)
+    src/
+      pages/             (Search, ListingDetail, Account, Bookings)
+      components/
+      hooks/
+      api/               (typed API client)
+      pwa/               (manifest.json, service worker registration)
+  admin-console/          (Vite + React — Company Admin + Super Admin, role-gated)
+    src/
+      pages/
+        company/          (Listings, Customers, Payments, Settings)
+        super-admin/       (Tenants, Billing, Platform Analytics)
+      components/
+      hooks/
+      api/
+packages/
+  ui/                    (shared design system / component library)
+  api-client/            (shared typed API client + DTO types)
+  utils/
+```
+
+**State/data:** React Query for server state, Zustand for light UI state, React Hook Form + Zod for form validation (mirroring backend DTOs).
+**Routing:** React Router v6.
+**PWA specifics:** `vite-plugin-pwa` with `registerType: 'autoUpdate'`. **Open technical decision to make early:** a fully static `manifest.json` can't show a different name/icon per tenant at install time — if per-tenant branded installs matter for launch, the manifest needs to be served dynamically from the backend (`/manifest.webmanifest?tenant=x`) rather than as a static file; otherwise all tenants share one generic app identity at install time, which is fine for MVP.
+
+### 15.1 UI Library Recommendations — Different Choice per App, on Purpose
+
+The customer PWA and the two admin apps have opposite priorities — one needs to feel distinctive and trustworthy to strangers, the other two need to be built fast and stay consistent for internal use — so they shouldn't reach for the same toolkit.
+
+**Customer PWA (`customer-web`) — needs to feel distinctive, not templated:**
+- Tailwind CSS + Radix UI (or Headless UI) primitives as the accessible unstyled base, styled per-tenant on top — avoids the generic "AI-built SaaS" look that comes from reaching for a pre-themed component kit on the one surface where branding actually matters commercially.
+- If building this with an AI coding agent, explicitly point it at Anthropic's `frontend-design` Skill (already available in this Claude environment) when generating customer-facing screens — it exists specifically to push back on templated, default-looking UI.
+
+**Company Admin Dashboard + Super Admin Dashboard (`admin-console`) — needs speed and consistency, not uniqueness:**
+- **Refine** (headless React admin framework) is the strongest fit here: it ships a NestJS/NestJs-Query data provider matching this stack exactly, it's headless so it renders through Tailwind/shadcn instead of forcing Ant Design or MUI, and it auto-generates CRUD screens (list/create/edit/show) from the API — which matters because Company Admin and Super Admin are ~80% the same table/form/detail patterns, just scoped to different resources and permissions.
+- Pair Refine with **shadcn/ui** (Tailwind-based, fast-growing component set, keeps a consistent look with the customer app's design tokens if desired), **TanStack Table** for any data grid Refine doesn't cover out of the box, and **Recharts** for the analytics/dashboard charts already specified in Section 7.
+- **Mature alternative:** `react-admin` (Marmelab) is a more opinionated, longer-track-record option with more built-in components, but it's built around Material UI by default — reach for it instead of Refine only if the team explicitly wants that more "batteries-included" feel over Refine's headless flexibility.
+- **Consistency tip for agent-built UI:** if multiple agent sessions will be generating admin screens over time, consider encoding "always use Refine + shadcn/ui + TanStack Table for admin/super-admin work" as a small custom Skill (via the `skill-creator` tool) rather than restating it in every prompt — the same mechanism that keeps `frontend-design` consistent across sessions.
+
+---
+
+## 16. Third-Party Integration Adapter Design
+
+Both SMS and payments use the same adapter pattern so providers can be swapped/added without touching business logic:
+
+```typescript
+export interface SmsProvider {
+  send(to: string, message: string): Promise<{ providerMessageId: string; status: 'sent' | 'failed' }>;
+  getDeliveryStatus?(providerMessageId: string): Promise<'delivered' | 'failed' | 'pending'>;
+}
+
+export interface PaymentProvider {
+  createPaymentIntent(amount: number, currency: string, metadata: Record<string, unknown>):
+    Promise<{ redirectUrl?: string; clientSecret?: string; providerRef: string }>;
+  verifyWebhookSignature(payload: unknown, signature: string): boolean;
+  handleWebhook(payload: unknown): Promise<{ status: 'success' | 'failed'; providerRef: string }>;
+}
+```
+
+- **`SmsRouterService`** picks the adapter by phone prefix: `+977` → Sparrow/Aakash SMS, everything else → Twilio.
+- **`PaymentRouterService`** picks the adapter by the tenant's configured default gateway or the customer's selected payment method at checkout.
+- **Facebook Page webhook** (Phase 3): standard Messenger webhook verifying `hub.verify_token`, receiving `messaging` events, mapping `sender.id` (PSID) + `page_id` into an `fb_page_leads` row, and pushing it into the Customer/CRM module as a new inquiry.
+
+---
+
+## 17. Multi-Tenancy Implementation Strategy
+
+**Chosen approach:** single database, shared schema, row-level isolation via `tenant_id` — simpler to operate than schema-per-tenant or database-per-tenant, and comfortably scales to hundreds/low-thousands of tenants, which fits this business size for the foreseeable future.
+
+**Mechanism:**
+1. Resolve tenant from the request subdomain (public/customer routes) or from the JWT's `tenant_id` claim (admin/staff routes).
+2. A NestJS middleware/interceptor stores the resolved tenant in an `AsyncLocalStorage`-backed `TenantContextService`.
+3. An ORM-level hook (TypeORM subscriber or Prisma middleware) automatically appends `WHERE tenant_id = :tenantId` to every query on tenant-scoped entities, and auto-stamps `tenant_id` on every insert.
+4. Requests that can't resolve a tenant are rejected (except explicitly whitelisted super-admin/public routes).
+5. **Mandatory automated test category:** for every tenant-scoped entity, a test asserting that a query made under Tenant A's context can never return Tenant B's rows.
+
+**Future scaling option (not needed for launch):** migrate a specific large Enterprise tenant to its own schema or database if it ever needs stronger physical isolation — the row-level design doesn't block this later.
+
+---
+
+## 18. DevOps, Environments & Deployment
+
+- **Environments:** local (docker-compose) → staging → production.
+- **`docker-compose.yml` (local):** `postgres`, `redis`, `api` (NestJS), `customer-web`, `admin-console`, optional `pgadmin`.
+- **CI/CD (GitHub Actions):** lint + unit + integration tests on every PR → auto-deploy to staging on merge to `develop` → deploy to production on merge/tag to `main`.
+- **Hosting:** Docker images on AWS ECS Fargate or GCP Cloud Run — avoids full Kubernetes operational overhead at this scale. API, background worker (BullMQ processors), and the two frontends deploy and scale as separate services.
+- **Background jobs run in their own container** (matching engine dispatch, SMS dispatch, rent reminders) so a burst of new listings/matches never blocks the main API.
+- **Static frontend builds** served via CDN (CloudFront/Cloudflare).
+- **Database:** automated daily snapshots + point-in-time recovery enabled from day one.
+
+---
+
+## 19. Security Implementation Checklist
+
+- JWT access token (short-lived) + httpOnly refresh token cookie for staff/admin; OTP-based phone login for customers.
+- Passwords hashed with bcrypt or argon2 — never stored plain or reversibly encrypted.
+- Tenant isolation enforced at the ORM layer (Section 17) and covered by automated cross-tenant leakage tests.
+- Every endpoint validated via `class-validator` DTOs with unknown properties stripped (whitelist mode).
+- Rate limiting (NestJS Throttler) on public endpoints — especially OTP request and search.
+- Mandatory signature verification on all inbound webhooks (payment gateways, Facebook).
+- Secrets loaded from a secrets manager (AWS/GCP Secrets Manager) in staging/production — never committed `.env` files.
+- HTTPS + HSTS everywhere.
+- Audit log entries for sensitive actions: refunds, tenant suspension, role changes, plan changes.
+
+---
+
+## 20. Testing Strategy
+
+- **Unit tests (Jest):** services and adapters, with SMS/payment providers mocked.
+- **Integration tests (Supertest):** against a dockerized test Postgres instance — this is where tenant-isolation edge cases get covered.
+- **E2E tests (Playwright/Cypress):** critical customer journey — search → enquire → SMS triggered (mocked) → booking → payment (gateway test/sandbox mode).
+- **Load testing (k6/Artillery):** specifically on the matching engine + SMS dispatch queue before launch — this is the feature most likely to spike under real usage (e.g. one popular listing matching hundreds of saved preferences at once).
+- **CI gate:** PRs blocked unless lint + unit + integration tests pass.
+
+---
+
+## 21. Environment Variables Reference
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection for queues/cache |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Token signing |
+| `JWT_ACCESS_EXPIRY` | Access token TTL |
+| `SMS_SPARROW_API_KEY`, `SMS_SPARROW_API_URL` | Nepal SMS provider |
+| `SMS_TWILIO_ACCOUNT_SID`, `SMS_TWILIO_AUTH_TOKEN` | International SMS provider |
+| `PAYMENT_STRIPE_SECRET_KEY`, `PAYMENT_STRIPE_WEBHOOK_SECRET` | International payments |
+| `PAYMENT_ESEWA_MERCHANT_ID`, `PAYMENT_ESEWA_SECRET` | Nepal payments |
+| `PAYMENT_KHALTI_SECRET_KEY` | Nepal payments |
+| `FB_PAGE_ACCESS_TOKEN`, `FB_WEBHOOK_VERIFY_TOKEN` | Phase 3 Facebook Page integration |
+| `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Listing image storage |
+| `APP_BASE_URL`, `CUSTOMER_APP_BASE_URL` | Used in SMS links, webhooks, CORS |
+| `NODE_ENV` | environment flag |
+
+---
+
+## 22. MVP Definition of Done (Acceptance Criteria)
+
+- [ ] A new tenant can be onboarded with a working subdomain
+- [ ] Company admin can create/edit/publish a listing with images
+- [ ] Customer can register via OTP and save search preferences
+- [ ] Publishing a matching listing triggers an SMS to matching customers, logged in `sms_logs`, within an acceptable delay
+- [ ] Customer can browse/search/filter listings on the PWA and submit an enquiry
+- [ ] A booking can be created and a payment collected via at least one gateway (sandbox mode acceptable pre-launch)
+- [ ] Company admin dashboard shows live counts (listings, leads, payments)
+- [ ] Automated tests confirm no cross-tenant data leakage
+- [ ] The customer app is installable as a PWA (manifest + service worker verified on Chrome/Android at minimum)
+
+---
+
+## 23. Immediate Next Steps (Business + Technical Kickoff)
+
+1. Confirm subscription pricing with 1–2 pilot tenants before finalizing the billing module logic
+2. Start Sparrow/Aakash SMS and eSewa/Khalti merchant account setup now — KYC/approval on these typically takes longer than the dev work itself
+3. Set up the monorepo (NestJS backend + `apps/customer-web` + `apps/admin-console`), CI pipeline, and staging environment
+4. Implement the multi-tenant context + tenant-isolation test harness **first**, before any feature module — everything else depends on it being correct
+5. Build MVP modules in this order: Tenants/Auth → Listings → Customers/Preferences → Matching Engine → SMS adapter → Payments (single gateway first) → Customer PWA → Admin dashboard
+6. Run the MVP Definition of Done checklist (Section 22) before onboarding the first real pilot tenant
+
+---
+
+## 24. Horizontal Scaling Strategy
+
+**Where the architecture already helps:**
+- JWT-based auth is stateless — any instance can validate any request, so no session affinity is needed at the load balancer.
+- Tenant context (Section 17) is resolved per-request via `AsyncLocalStorage` — it's request-scoped, not stored on the server, so it carries no state between requests or instances.
+- File/image storage already goes straight to S3/R2 (Section 7) rather than local disk — critical, since local-disk storage silently breaks the moment a second server is added (uploads become instance-specific and disappear from the load balancer's point of view).
+
+**What needs explicit design for safe horizontal scaling:**
+
+### 24.1 API Layer
+- Deploy the NestJS API as N identical, stateless container instances behind a load balancer (AWS ALB / GCP Load Balancer / Nginx).
+- No sticky sessions required (auth is JWT).
+- A `/health` endpoint lets the load balancer/orchestrator route traffic only to ready instances, and drain an instance gracefully on deploy/scale-down (finish in-flight requests, stop accepting new ones — avoids dropped requests mid-deploy).
+- Auto-scale on CPU utilization and/or requests-per-instance. A reasonable starting policy: min 2 instances (redundancy, not load), max 8-10, scale out above ~65-70% sustained CPU.
+
+### 24.2 Shared State — Redis Must Be Centralized
+- A single managed Redis (AWS ElastiCache / GCP Memorystore) — never one Redis per instance — backs: BullMQ queues, rate-limit counters, and any application-level cache (cached search results, tenant settings, subscription plan limits).
+- NestJS's default Throttler storage is in-memory — once there's more than one instance it must be switched to a Redis-backed storage adapter, or each instance ends up enforcing its own separate rate limit instead of one shared limit.
+- If real-time features (live chat, push-style updates) are added later, use Socket.IO's Redis adapter so a message published from one instance reaches sockets connected to any other instance.
+
+### 24.3 Background Workers Scale Independently
+- BullMQ workers pull from the shared Redis queue — safe to run as multiple worker instances, since each job is claimed by exactly one worker.
+- Scale the worker pool separately from the API pool: SMS/matching-engine load and API request load don't move together — a single popular listing can spike matching/SMS jobs without any spike in API traffic at all.
+- Make job handlers idempotent (e.g. a dedupe key of `listing_id + customer_id + event_type` checked before sending an SMS) so a retried job never double-sends.
+
+### 24.4 Database — the Real Bottleneck at Scale
+- **Connection pooling is mandatory once there are multiple API instances.** Put PgBouncer (or RDS Proxy / Cloud SQL's built-in pooler) in front of Postgres — N instances × M connections each can exhaust Postgres's connection limit quickly without it.
+- **Read replicas** for read-heavy paths (public listing search/browse) once traffic justifies it — route reads there, writes to the primary.
+- **Migrations run once, as a CI/CD deploy step — never on each instance's boot.** Letting every instance run migrations on startup causes race conditions when multiple instances deploy simultaneously.
+- Index `tenant_id` (and composite indexes like `(tenant_id, status)` on listings) — every query is tenant-filtered by design, so this is where query performance is won or lost as data grows.
+
+### 24.5 Idempotency Across Instances
+- A payment gateway webhook retry can land on a different server than the first attempt. Guard with a unique constraint on `gateway_transaction_id` in the `payments` table and check-before-process logic — never assume "this instance already saw this webhook," since the next attempt may hit a different one.
+- Apply the same principle to the Facebook Page webhook and any other inbound webhook.
+
+### 24.6 Observability Across Instances
+- Centralized logging (CloudWatch / Stackdriver / ELK) — logs from any instance must be queryable together, not left on individual instance disks.
+- Propagate a request ID through headers so a single customer request can be traced across load balancer → API instance → worker → SMS/payment adapter.
+- Centralized metrics (Prometheus/Grafana or a managed equivalent) aggregated across all instances — per-instance dashboards stop being useful once auto-scaling is in play.
+
+### 24.7 Suggested Scaling Order (Don't Over-Build Early)
+1. **Launch:** 2 API instances behind a load balancer (for redundancy, not yet for load) + 1 shared Redis + 1 Postgres primary + 1-2 worker instances. This alone gives zero-downtime deploys and basic fault tolerance.
+2. **Add a read replica** once search/browse read traffic noticeably competes with write-heavy operations.
+3. **Add PgBouncer** as soon as instance count grows past a handful, or sooner if connection-limit errors appear.
+4. **Scale the worker pool independently** once SMS/matching volume grows — this is likely to need scaling before the API layer does, since one listing can fan out to hundreds of matched customers at once.
+5. **Tune real auto-scaling thresholds** only once there's production traffic data to tune against — guessing CPU/RPS thresholds before launch usually just wastes cost on over-provisioning.
+
+---
+
+## 25. Agent Development Guardrails
+
+If any part of this build is delegated to an AI coding agent (Claude Code, Cursor, or similar), place **`AGENTS.md`** at the repository root alongside this document. It pins the agent to this Plan as the single source of truth and prevents three common failure modes: architecture substitution (swapping the agreed stack for "something easier"), scope creep (building Phase 3/4 features before Phase 1 is done), and silent schema drift (editing the database without updating Section 12).
+
+It also includes a set of **human check-in queries** — questions to paste back to the agent after any task looks "finished," to verify it actually followed the Plan rather than just producing plausible-looking code. Use them liberally; catching drift after one task is cheap, catching it after ten is not.
+
+If using Claude Code specifically, save it as `CLAUDE.md` at the repo root so it's loaded automatically every session — see `AGENTS.md` Section 7 for the exact placement rule.
+
+Two companion files complete the setup:
+- **`docs/PROGRESS.md`** — a living checklist mirroring this Plan's Phase 1 build order and Section 22 Definition of Done. The agent updates it after every task; since agent sessions don't carry memory forward, this file is the only record of what's actually been done versus what's merely been discussed.
+- **`KICKOFF_PROMPT.md`** — the exact first message to paste into Claude Code (or a similar agent) to start the build. It sequences the agent through reading the Plan and `CLAUDE.md`, scaffolding the repo, installing the testing hooks, building the tenant-isolation foundation first, and then proceeding through Phase 1 in order — stopping for review after the initial scaffold rather than running unsupervised through the whole MVP.
+- **`PAUSE_PROMPT.md`** / **`RESUME_PROMPT.md`** — paste `PAUSE_PROMPT.md` before ending any session (forces a proper `PROGRESS.md` update and a clear "Resume Point" note) and `RESUME_PROMPT.md` at the start of the next one (forces the agent to verify that note against actual test/git state before writing new code, rather than trusting it blindly). See `AGENTS.md` Section 9.

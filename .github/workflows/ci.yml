@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: roomfinder_test
+          POSTGRES_USER: roomfinder
+          POSTGRES_PASSWORD: roomfinder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint backend
+        run: cd apps/backend && pnpm lint
+
+      - name: Lint customer-web
+        run: cd apps/customer-web && pnpm lint
+
+      - name: Lint admin-console
+        run: cd apps/admin-console && pnpm lint
+
+      - name: Test backend
+        env:
+          DATABASE_URL: postgresql://roomfinder:roomfinder_test@localhost:5432/roomfinder_test
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: ci-test-access-secret-32-chars-min
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-32-chars-min
+          JWT_ACCESS_EXPIRY: 15m
+          NODE_ENV: test
+        run: cd apps/backend && pnpm test
+
+      - name: Test customer-web
+        run: cd apps/customer-web && pnpm test --run
+
+      - name: Test admin-console
+        run: cd apps/admin-console && pnpm test --run
