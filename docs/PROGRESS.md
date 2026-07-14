@@ -1,14 +1,14 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-14 — Session 9 end: Vite proxy rewrite fixed (API routing), CORS fixed for admin port 5174, PWA manifest dev mode fixed. Pushed `93c4df2`.
+**Last updated:** 2026-07-14 — Session 9 end: env files created, VITE_API_URL + VITE_TENANT_ID wired. Both frontends hit localhost:3000 directly. Latest commit `c9292c6`.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Phase 1 fully functional end-to-end. All builds clean. Dev proxy fixed. Latest commit `93c4df2` on `master` → `git@github.com:Sarojb31/tenant-renting.git`.
+**Session stopped after:** Phase 1 fully functional end-to-end. Env wired. Latest commit `c9292c6` on `master`.
 
-**Very next task:** Phase 2 planning — WhatsApp integration, AI-assisted matching, Facebook Page integration. Review Plan §9 Phase 2 before starting.
+**Very next task:** Phase 2 — WhatsApp integration, AI-assisted matching, Facebook Page. Review Plan §9 Phase 2 first.
 
 **Before touching anything, verify:**
 1. `docker compose up -d postgres redis`
@@ -16,19 +16,32 @@
 3. `cd apps/backend && npm run test:integration` — expect 96 passing
 4. `cd apps/customer-web && ./node_modules/.bin/vitest run` — expect 18 passing
 5. `cd apps/admin-console && ./node_modules/.bin/vitest run` — expect 21 passing
-6. Start all three: `pnpm dev` from monorepo root (or per-app `npm run dev`)
-7. Admin → http://localhost:5174 — should show styled dark login (Tailwind OK)
-8. Customer → http://localhost:5173 — should show Phone/Email tab login
+6. Create local env files if missing (gitignored — must be created manually):
+   ```
+   # apps/customer-web/.env
+   VITE_API_URL=http://localhost:3000
+   VITE_TENANT_ID=00000000-0000-0000-0000-000000000010
+
+   # apps/admin-console/.env
+   VITE_API_URL=http://localhost:3000
+
+   # apps/backend/.env — add if missing:
+   ADMIN_APP_BASE_URL=http://localhost:5174
+   ```
+7. `pnpm dev` — restart required after creating .env files
+8. Admin → http://localhost:5174 (dark styled login, email+password)
+9. Customer → http://localhost:5173 (Phone/OTP tab + Email tab)
 
 **Key decisions / architecture (carry forward):**
 - NestJS has NO global prefix. Routes at `/auth/login`, `/listings`, etc.
-- Vite proxy rewrites: `/api/*` → `http://localhost:3000/*` (strips `/api`). Frontend baseURL stays `/api` in dev.
-- CORS allows both 5173 (customer) + 5174 (admin). Override via `CUSTOMER_APP_BASE_URL` / `ADMIN_APP_BASE_URL` in `.env`.
-- Production `VITE_API_URL=https://api.yourdomain.com` (no `/api` suffix).
+- Both frontends hit backend directly via `VITE_API_URL=http://localhost:3000` (no proxy dependency).
+- CORS allows 5173 + 5174. Env vars: `CUSTOMER_APP_BASE_URL`, `ADMIN_APP_BASE_URL`.
+- Production: `VITE_API_URL=https://api.yourdomain.com`, `VITE_TENANT_ID` blank (subdomain resolves tenant).
 - JWT payload `type: 'user'|'customer'` — JwtStrategy routes to correct table.
 - Customer auth: OTP (phone) OR email+password. Both return `{ accessToken, customer }`.
+- customer-web axios client sends `x-tenant-id` header from `VITE_TENANT_ID` on every request.
 - Seed credentials: superadmin@roomfinder.dev / SuperAdmin123! · admin@demo-property.com / Admin123! · demo@customer.com / Customer123!
-- Migration 1752451211000 adds `password_hash` to customers — must run before seed.
+- Migration 1752451211000 adds `password_hash` to customers — run before seed.
 
 ---
 
