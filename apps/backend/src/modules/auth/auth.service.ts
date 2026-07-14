@@ -17,6 +17,7 @@ import { PhoneOtpCode } from './entities/phone-otp-code.entity';
 import { LoginDto } from './dto/login.dto';
 import { OtpRequestDto } from './dto/otp-request.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
+import { CustomerEmailLoginDto } from './dto/customer-email-login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { UserRole } from '@common/enums/user-role.enum';
 
@@ -93,7 +94,7 @@ export class AuthService {
     dto: OtpVerifyDto,
     tenantId: string | null,
     res: Response,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<{ accessToken: string; customer: { id: string; phone: string; name?: string } }> {
     if (!tenantId) throw new BadRequestException('Tenant context required');
 
     const otpRecord = await this.otpRepo.findOne({
@@ -132,7 +133,47 @@ export class AuthService {
       this.customersService.setRefreshTokenHash(customer.id, hash),
     );
 
-    return { accessToken };
+    return {
+      accessToken,
+      customer: { id: customer.id, phone: customer.phone, name: customer.name ?? undefined },
+    };
+  }
+
+  async customerEmailLogin(
+    dto: CustomerEmailLoginDto,
+    tenantId: string | null,
+    res: Response,
+  ): Promise<{ accessToken: string; customer: { id: string; email: string; name?: string } }> {
+    if (!tenantId) throw new BadRequestException('Tenant context required');
+
+    const dummyHash = '$argon2id$v=19$m=65536,t=3,p=4$dummydummydummy$dummydummydummydummydummydummydummydummy';
+    const customer = await this.customersService.findByEmail(tenantId, dto.email);
+
+    const passwordMatch = customer?.passwordHash
+      ? await argon2.verify(customer.passwordHash, dto.password)
+      : await argon2.verify(dummyHash, dto.password).catch(() => false);
+
+    if (!customer || !passwordMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const payload: JwtPayload = {
+      sub: customer.id,
+      email: customer.email ?? '',
+      role: UserRole.CUSTOMER,
+      tenantId,
+      type: 'customer',
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    await this._issueRefreshToken(customer.id, 'customer', res, (hash) =>
+      this.customersService.setRefreshTokenHash(customer.id, hash),
+    );
+
+    return {
+      accessToken,
+      customer: { id: customer.id, email: customer.email!, name: customer.name ?? undefined },
+    };
   }
 
   // ─── Shared ───────────────────────────────────────────────────────────────

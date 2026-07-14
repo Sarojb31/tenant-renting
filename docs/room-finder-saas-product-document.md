@@ -2,7 +2,7 @@
 
 **Product Type:** Multi-tenant SaaS platform for room-finding / room-rental companies
 **Prepared for:** Product planning, architecture, and development handoff
-**Version:** 2.0 — Finalized for development
+**Version:** 2.2 — Added cursor/offset pagination strategy (Section 14.1) alongside the search + landing page addition (Section 1.2)
 
 ---
 
@@ -29,6 +29,26 @@ Because it is built as a **SaaS**, each room-finder company operates as an isola
 | Native apps (iOS/Android) | **Deferred.** Add Expo/React Native later only if app-store presence becomes a requirement | PWA covers install-to-home-screen, push notifications, offline caching for MVP |
 | Facebook Marketplace | **No direct posting/message-sync integration** — no free/open API exists for either (see 4.12) | Meta's Marketplace Partner API is a gated approval program, not self-serve; Marketplace chat is tied to personal profile and isn't exposed via any Messenger API |
 | Launch markets | Nepal + International | Requires dual payment gateways, dual SMS providers, and multi-currency support from the data-model level |
+
+## 1.2 Scope Addition — Advanced Search & Premium Landing Page (Post-Phase-1)
+
+Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built and tested — this is a genuine scope change, not a pre-build spec, so treat it as such rather than assuming it slots in for free:
+
+| Addition | What it means |
+|---|---|
+| Location search | Beyond the existing `city` filter — proper geocoded area/address search, with room to add radius/"near me" search later |
+| Room configuration search | Filter by BHK type (studio/1BHK/2BHK/3BHK+) and by number of rooms — two related but distinct listing attributes, both new columns |
+| Advanced search | A combined filter panel (location + BHK + price + move-in date + feasibility tags) beyond the current quick-filter bar |
+| Feasibility search | Proximity tags such as "near highway" / "near public transport station" — implemented as a new category on the **existing** `amenities` table rather than a new schema concept, to avoid duplicating infrastructure that's already built and tested |
+| Premium landing page | A dedicated marketing/entry page (hero, search bar, featured listings, trust signals) — the Customer PWA currently has no landing page distinct from the search page; this is new, not a redesign |
+| Pagination / infinite scroll | The current `GET /listings` returns an unpaginated result set — cursor-based pagination is added for the public search endpoint specifically (feeds infinite scroll, stays stable under continuous writes), offset pagination for admin list views. See Section 14.1 for the full rationale and shapes. |
+
+**Impact on what's already built (flag these in `PROGRESS.md` when you resume):**
+- `listings` table needs a migration to add `bhk_type` and `number_of_rooms` (Section 12) — the 13 existing listings integration tests will need new assertions, not a rewrite.
+- `amenities` needs a `category` column (Section 12) — existing amenity seed data needs categorizing, not deleting.
+- The public search endpoint (`GET /listings`, currently filtering on `city`/`roomType`/rent range only, and currently unpaginated) needs new query params (Section 14) plus cursor pagination (Section 14.1) — additive, existing filter tests should keep passing unchanged, but a new composite index (Section 12) is needed for the cursor query to perform well.
+- The Customer PWA's `SearchFilters` component (5 existing tests) needs new fields added — extend it, don't replace it. The Landing Page and the infinite-scroll list view are net-new, not a change to the existing `SearchPage` component's core logic.
+- **This entire round of frontend work — landing page and the advanced/feasibility search UI — should be built using the `frontend-design` Skill**, not default Tailwind boilerplate. The landing page is explicitly the one surface in this product where "looks premium, not templated" has direct commercial value (see Section 15.1's original rationale for the customer app vs. admin apps split — this reinforces it, it doesn't change it).
 
 ---
 
@@ -103,6 +123,8 @@ Because it is built as a **SaaS**, each room-finder company operates as an isola
 
 **Features:**
 - Add/edit/delete room listings: title, description, rent, deposit, room type (single/shared/PG/apartment), amenities (WiFi, parking, attached bathroom, furnished, etc.)
+- **Room configuration:** BHK type (studio/1BHK/2BHK/3BHK/4BHK+) and number of rooms, captured as distinct searchable fields — not every listing fits BHK terminology (a single PG room doesn't), so both fields are optional and independently filterable (Section 12)
+- **Feasibility/proximity tagging:** extends the existing amenities model with a `category` (e.g. "feasibility") so tags like "near highway," "near public transport station," "near hospital" are managed through the same admin UI and data model as standard amenities, rather than a parallel system
 - Multi-image upload with gallery, optional 360°/virtual tour add-on
 - Location capture with map pin (Google Maps/OpenStreetMap) and address autocomplete
 - Availability calendar (available from date, occupied/vacant status)
@@ -162,7 +184,12 @@ Because it is built as a **SaaS**, each room-finder company operates as an isola
 **Purpose:** The branded storefront each room-finder company's customers use.
 
 **Features:**
-- Search & filter (location, price range, room type, amenities, move-in date)
+- **Premium landing page** — a dedicated entry point (hero section, prominent search bar, featured/trending listings, trust signals, "how it works") distinct from the search results page itself; this is the one screen where visual polish has direct commercial value, so it's built with the `frontend-design` Skill rather than default component styling
+- Search & filter (location, price range, room type, amenities, move-in date) as a quick-filter bar, plus an **advanced search panel** combining all of the above with BHK/room-count and feasibility tags in one place
+- **Infinite scroll on search results**, backed by cursor-based pagination (Section 14.1) — paired with a manual "Load more" fallback rather than pure auto-scroll, for accessibility and to keep the footer reachable
+- **Location search** beyond a plain city dropdown — address/area autocomplete, with room to add radius ("near me") search later
+- **Room configuration search** — filter by BHK type (studio/1BHK/2BHK/3BHK+) and by number of rooms
+- **Feasibility search** — filter by proximity tags such as "near highway" or "near public transport station," surfaced through the same amenities-based filter UI as standard amenities (Section 4.3)
 - Map view + list view toggle
 - Room detail page with gallery, amenities, nearby landmarks, "Enquire" / "Book Visit" CTA
 - Customer account: save preferences, favorite listings, view booking/payment history, manage SMS notification preferences
@@ -346,7 +373,7 @@ These are monetizable extras you can gate behind higher subscription tiers:
 
 ## 12. Detailed Database Schema (PostgreSQL)
 
-Field-level schema, ready to translate into migration files. All tenant-scoped tables carry `tenant_id` for row-level isolation (see Section 17).
+Field-level schema, ready to translate into migration files. All tenant-scoped tables carry `tenant_id` for row-level isolation (see Section 17). Every table also carries `created_at`/`updated_at` timestamps via a shared base entity — these are omitted from most tables below for brevity and only spelled out where they matter for a specific reason (e.g. `listings`, where `created_at` is load-bearing for pagination, not just an audit column — see Section 14.1).
 
 **tenants**
 | Column | Type | Notes |
@@ -411,8 +438,9 @@ Field-level schema, ready to translate into migration files. All tenant-scoped t
 | locations | jsonb | array of area names/geo bounds |
 | budget_min, budget_max | decimal | |
 | room_type | enum(single, shared, pg, apartment, studio) | |
+| bhk_type | enum(studio, 1bhk, 2bhk, 3bhk, 4bhk_plus), nullable | *(added post-Phase-1)* so the Matching Engine (Section 4.5) can match on BHK, not just room_type |
 | move_in_date | date, nullable | |
-| amenities_wanted | jsonb | array of amenity IDs |
+| amenities_wanted | jsonb | array of amenity IDs — now includes feasibility-category amenities |
 | active | boolean | used/paused by matching engine |
 
 **listings**
@@ -422,16 +450,19 @@ Field-level schema, ready to translate into migration files. All tenant-scoped t
 | tenant_id | uuid, FK | |
 | title, description | varchar/text | |
 | room_type | enum(single, shared, pg, apartment, studio) | |
+| bhk_type | enum(studio, 1bhk, 2bhk, 3bhk, 4bhk_plus), nullable | *(added post-Phase-1)* mainly applies to apartment/studio room_type; nullable since PG/shared rooms don't fit BHK terminology |
+| number_of_rooms | int, nullable | *(added post-Phase-1)* distinct from bhk_type — usable for listings that don't fit BHK terms |
 | rent_amount, deposit_amount | decimal | |
 | currency | varchar | |
 | address, city | varchar | |
-| latitude, longitude | decimal | |
+| latitude, longitude | decimal | used for location search; radius search is a Phase 2+ extension |
 | status | enum(draft, pending_review, published, occupied, archived) | |
 | available_from | date | |
 | created_by | uuid, FK → users | |
+| created_at, updated_at | timestamp | **spelled out here** (unlike other tables) because `created_at` is the keyset sort column for cursor pagination on the public search endpoint — see Section 14.1. Composite index: `(tenant_id, status, created_at DESC, id DESC)`.
 
 **listing_images** — `id, listing_id (FK), url, sort_order`
-**amenities** — `id, name (unique)`
+**amenities** — `id, name (unique), category (enum(general, feasibility), default 'general')` — *(category added post-Phase-1)* lets "near highway" / "near public transport station" style feasibility tags reuse the existing amenity + `listing_amenities` infrastructure instead of a parallel schema
 **listing_amenities** — join table: `listing_id (FK), amenity_id (FK)`, composite PK
 
 **bookings**
@@ -536,7 +567,7 @@ jobs/                      (BullMQ processors: matching-dispatch, sms-dispatch, 
 | POST | /auth/refresh | auth | Refresh access token | Refresh token |
 | POST | /tenants | tenants | Onboard new tenant | Super Admin |
 | GET/PATCH | /tenants/:id | tenants | View/update tenant settings | Company Admin+ |
-| GET/POST | /listings | listings | List (public, filterable) / create | Public (GET) · Staff (POST) |
+| GET/POST | /listings | listings | List (public, cursor-paginated, filterable by city, roomType, bhkType, numberOfRooms, rent range, amenity/feasibility tag IDs — see Section 14.1) / create | Public (GET) · Staff (POST) |
 | GET/PATCH/DELETE | /listings/:id | listings | View/update/delete a listing | Public (GET) · Staff |
 | POST | /listings/:id/images | listings | Upload listing images | Staff |
 | GET/POST | /customers | customers | List/create customer records | Staff |
@@ -556,6 +587,37 @@ jobs/                      (BullMQ processors: matching-dispatch, sms-dispatch, 
 
 *(This is the MVP-critical subset; each module will have additional supporting endpoints such as pagination, search filters, and bulk operations as it's built out.)*
 
+### 14.1 Pagination Strategy — Cursor Where It Earns Its Complexity, Offset Everywhere Else
+
+Cursor pagination is the right tool for exactly one endpoint here, not a default to apply everywhere. The split:
+
+| Endpoint type | Strategy | Why |
+|---|---|---|
+| Public listing search (`GET /listings`) — powers customer infinite scroll | **Cursor (keyset)** | New listings publish continuously (the Matching Engine writes on every publish). Offset pagination visibly breaks under continuous writes — a customer scrolling while new listings insert either sees duplicates or skips rows, because "page 3" shifts under them mid-scroll. Cursor pagination has no such drift, and it maps directly onto `useInfiniteQuery`. |
+| Admin/internal list endpoints (`GET /customers`, `GET /super-admin/tenants`, `GET /sms/logs`, admin's own listings table view) | **Offset (page number)** | Admin users want "page 5 of 12" and an exact total count — things cursor pagination structurally can't give you. Refine's data provider and TanStack Table (Section 15.1) are built around page/pageSize out of the box, so this is also the path of least implementation effort. Tenant-scoped data volumes here are moderate, so the `COUNT(*)` cost of offset pagination isn't a real concern yet — revisit only if a specific tenant's table grows large enough to matter. |
+
+**Cursor-based request/response shape (`GET /listings`):**
+```
+GET /listings?limit=20&cursor=<opaque-base64>&city=&bhkType=&numberOfRooms=&minRent=&maxRent=&amenityIds=
+
+Response: { "data": Listing[], "nextCursor": string | null }
+```
+- The cursor encodes the last-seen `(created_at, id)` tuple, base64'd — never a raw offset number.
+- Query pattern: `WHERE tenant_id = :tenantId AND status = 'published' AND (created_at, id) < (:cursorCreatedAt, :cursorId) ORDER BY created_at DESC, id DESC LIMIT :limit`.
+- Fetch `limit + 1` rows; if the extra row exists, set `nextCursor` from row `limit` and drop it from `data` — this is how you know there's a next page without a separate count query.
+- Backed by the composite index noted in Section 12 (`tenant_id, status, created_at DESC, id DESC`) — without it, this query pattern degrades the same way offset pagination does.
+
+**Offset-based request/response shape (admin list endpoints):**
+```
+GET /customers?page=1&pageSize=25&sort=name&filter=
+
+Response: { "data": T[], "total": number, "page": number, "pageSize": number }
+```
+
+**Frontend implementation:**
+- **Customer PWA:** `useInfiniteQuery` (TanStack Query) driven by `nextCursor`, triggered by an `IntersectionObserver` on a sentinel element near the bottom of the list. **Pair it with a visible "Load more" button as a fallback, not pure auto-scroll-triggered loading** — auto-only infinite scroll is genuinely harder to use with a keyboard or screen reader, and it makes the footer/company info effectively unreachable. Also persist loaded pages + scroll position (session storage keyed by search params) when navigating to a listing detail page, so returning via back-button doesn't collapse the list back to page one.
+- **Admin console:** already covered by the Refine + TanStack Table choice in Section 15.1 — both expect page/pageSize natively, so this needs no additional library or pattern beyond what's already specified.
+
 ---
 
 ## 15. Frontend Architecture — React PWA Structure
@@ -566,7 +628,7 @@ Recommended as a monorepo (pnpm workspaces or Turborepo) with two deployable app
 apps/
   customer-web/         (Vite + React, PWA — public, tenant-themed)
     src/
-      pages/             (Search, ListingDetail, Account, Bookings)
+      pages/             (Landing, Search, ListingDetail, Account, Bookings)
       components/
       hooks/
       api/               (typed API client)
@@ -596,6 +658,7 @@ The customer PWA and the two admin apps have opposite priorities — one needs t
 **Customer PWA (`customer-web`) — needs to feel distinctive, not templated:**
 - Tailwind CSS + Radix UI (or Headless UI) primitives as the accessible unstyled base, styled per-tenant on top — avoids the generic "AI-built SaaS" look that comes from reaching for a pre-themed component kit on the one surface where branding actually matters commercially.
 - If building this with an AI coding agent, explicitly point it at Anthropic's `frontend-design` Skill (already available in this Claude environment) when generating customer-facing screens — it exists specifically to push back on templated, default-looking UI.
+- **This applies with extra weight to the Landing Page and the Advanced/Feasibility Search panel (Section 1.2).** These are the highest-visibility screens a prospective customer sees before trusting the platform with a deposit — don't let an agent default to a generic hero-plus-three-cards template here. Instruct it explicitly to load and follow `frontend-design` for these specific screens, not just "build a landing page."
 
 **Company Admin Dashboard + Super Admin Dashboard (`admin-console`) — needs speed and consistency, not uniqueness:**
 - **Refine** (headless React admin framework) is the strongest fit here: it ships a NestJS/NestJs-Query data provider matching this stack exactly, it's headless so it renders through Tailwind/shadcn instead of forcing Ant Design or MUI, and it auto-generates CRUD screens (list/create/edit/show) from the API — which matters because Company Admin and Super Admin are ~80% the same table/form/detail patterns, just scoped to different resources and permissions.

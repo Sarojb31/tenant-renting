@@ -1,6 +1,6 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-14 — Session 8: Phase 1 Steps 7+8 complete (Customer PWA + Admin Dashboard) — 40 unit + 96 integration + 14 PWA + 21 admin = 171 tests passing
+**Last updated:** 2026-07-14 — Session 9: Customer email login added, demo customer seeded, admin Tailwind cache cleared — 40 unit + 96 integration + 18 PWA + 21 admin = 175 tests passing
 
 ---
 
@@ -8,12 +8,12 @@
 
 **Session stopped after:** Phase 1 Step 7 (Customer PWA) complete. 40 unit + 96 integration + 14 component = 150 total passing. Pushed to `git@github.com:Sarojb31/tenant-renting.git`.
 
-**Very next task:** Phase 2 planning — WhatsApp integration, AI-assisted matching, Facebook Page integration. Review Plan §9 Phase 2 before starting.
+**Very next task:** Phase 2 planning — WhatsApp integration, AI-assisted matching, Facebook Page integration. Review Plan §9 Phase 2 before starting. Verify admin console Tailwind renders on fresh `pnpm dev` before assuming it's broken (cache was cleared this session).
 
 **Before touching anything, verify:**
 1. `docker compose up -d postgres redis` (postgres must be running)
 2. `cd apps/backend && npm run test:integration` — expect 96 passing
-3. `cd apps/backend && npm run seed` — creates super admin + demo company admin
+3. `cd apps/backend && npm run seed` — creates super admin + demo company admin + demo customer
 4. `cd apps/customer-web && ./node_modules/.bin/vitest run` — expect 14 passing
 5. `cd apps/admin-console && ./node_modules/.bin/vitest run` — expect 21 passing
 
@@ -105,8 +105,11 @@
 - [x] `DataTable` — TanStack Table v8 wrapper with loading skeletons and empty state.
 - [x] `Sidebar` — dark (#0F1117) sticky nav with role badge, nav groups, logout.
 - [x] 21 Vitest component tests — StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4. All passing.
-- [x] Seed script (`apps/backend/npm run seed`) — creates super admin + demo company admin with argon2-hashed passwords.
+- [x] Seed script (`apps/backend/npm run seed`) — creates super admin + demo company admin + demo customer with argon2-hashed passwords.
 - [x] README updated with seed credentials and login instructions.
+- [x] Customer email+password login — migration `1752451211000-AddCustomerPasswordHash`, new `POST /auth/customer/email-login` endpoint, `CustomerEmailLoginDto`, `CustomersService.findByEmail/setPasswordHash`, constant-time verify (matches staff auth pattern). 4 new backend unit tests.
+- [x] LoginPage (customer-web) tab switcher — Phone/OTP tab + Email tab side-by-side. Zod-validated email+password form. 18 Vitest tests (was 14). `verifyOtp` response now returns `customer` object (bug fix).
+- [x] Auth store `Customer` interface updated: `phone` and `email` both optional (either auth flow works).
 - [ ] Billing / analytics views — deferred to Phase 2 (no billing data model yet).
 
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)

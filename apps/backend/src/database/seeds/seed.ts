@@ -14,6 +14,7 @@ import * as argon2 from 'argon2';
 const SUPER_ADMIN_ID   = '00000000-0000-0000-0000-000000000001';
 const DEMO_TENANT_ID   = '00000000-0000-0000-0000-000000000010';
 const COMPANY_ADMIN_ID = '00000000-0000-0000-0000-000000000002';
+const DEMO_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 
 async function seed() {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -54,6 +55,20 @@ async function seed() {
       [COMPANY_ADMIN_ID, DEMO_TENANT_ID, 'Demo Admin', 'admin@demo-property.com', adminHash],
     );
     console.log('✓ Company admin admin@demo-property.com  (tenant: Demo Property Co.)');
+
+    /* ------------------------------------------------------------------ */
+    /* 4. Demo customer for the demo tenant                                */
+    /* ------------------------------------------------------------------ */
+    const customerHash = await argon2.hash('Customer123!');
+    await client.query(
+      `INSERT INTO customers (id, tenant_id, name, phone, email, password_hash, phone_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       ON CONFLICT (id) DO UPDATE
+         SET email = EXCLUDED.email,
+             password_hash = EXCLUDED.password_hash`,
+      [DEMO_CUSTOMER_ID, DEMO_TENANT_ID, 'Demo Customer', '+9779800000001', 'demo@customer.com', customerHash],
+    );
+    console.log('✓ Demo customer demo@customer.com  (tenant: Demo Property Co.)');
 
     console.log('\nSeed complete. See README.md for login instructions.');
   } finally {

@@ -137,17 +137,30 @@ This creates:
 |------|-------|----------|-------|
 | **Super Admin** | `superadmin@roomfinder.dev` | `SuperAdmin123!` | Platform-wide access, no tenant |
 | **Company Admin** | `admin@demo-property.com` | `Admin123!` | Tenant: *Demo Property Co.* |
+| **Demo Customer** | `demo@customer.com` | `Customer123!` | Tenant: *Demo Property Co.* |
 
 **Access the Admin Console** at http://localhost:5174
 
 - Super Admin → redirected to `/super/dashboard` (platform overview + tenant management)
 - Company Admin → redirected to `/company/dashboard` (listings, customers, payments)
 
+**Access the Customer App** at http://localhost:5173
+
+- Login via Phone OTP (tab 1) or Email+Password (tab 2)
+- Demo customer email: `demo@customer.com` / `Customer123!`
+
 **API login** (for Swagger/curl testing):
 ```bash
+# Admin login
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"superadmin@roomfinder.dev","password":"SuperAdmin123!"}'
+
+# Customer email login (requires x-tenant-id header)
+curl -X POST http://localhost:3000/api/auth/customer/email-login \
+  -H "Content-Type: application/json" \
+  -H "x-tenant-id: <demo-tenant-uuid>" \
+  -d '{"email":"demo@customer.com","password":"Customer123!"}'
 ```
 
 > Re-running `npm run seed` is safe — uses `ON CONFLICT ... DO UPDATE` and `ON CONFLICT ... DO NOTHING`.

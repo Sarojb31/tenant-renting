@@ -17,10 +17,10 @@ function renderPage() {
   );
 }
 
-describe('LoginPage', () => {
+describe('LoginPage — Phone OTP flow', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('shows phone step by default', () => {
+  it('shows phone input by default', () => {
     renderPage();
     expect(screen.getByPlaceholderText(/98xxxxxxxx/i)).toBeInTheDocument();
   });
@@ -30,7 +30,7 @@ describe('LoginPage', () => {
     renderPage();
     fireEvent.change(screen.getByPlaceholderText(/98xxxxxxxx/i), { target: { value: '+9779800000000' } });
     fireEvent.click(screen.getByRole('button', { name: /send otp/i }));
-    await waitFor(() => expect(screen.getByText(/enter otp/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/sent a 6-digit code/i)).toBeInTheDocument());
   });
 
   it('shows error when requestOtp fails', async () => {
@@ -46,5 +46,44 @@ describe('LoginPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/98xxxxxxxx/i), { target: { value: '123' } });
     fireEvent.click(screen.getByRole('button', { name: /send otp/i }));
     await waitFor(() => expect(screen.getByText(/valid phone/i)).toBeInTheDocument());
+  });
+});
+
+describe('LoginPage — Email flow', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function switchToEmail() {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /email/i }));
+  }
+
+  it('shows email and password fields after switching to email tab', () => {
+    switchToEmail();
+    expect(screen.getByPlaceholderText(/you@example/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
+  });
+
+  it('shows validation error for invalid email', async () => {
+    switchToEmail();
+    fireEvent.change(screen.getByPlaceholderText(/you@example/i), { target: { value: 'notanemail' } });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'pass' } });
+    const form = screen.getByRole('button', { name: /sign in/i }).closest('form')!;
+    fireEvent.submit(form);
+    await waitFor(() => expect(screen.getByText(/valid email/i)).toBeInTheDocument());
+  });
+
+  it('shows error on wrong credentials', async () => {
+    vi.mocked(authApi.customerEmailLogin).mockRejectedValue(new Error('401'));
+    switchToEmail();
+    fireEvent.change(screen.getByPlaceholderText(/you@example/i), { target: { value: 'demo@customer.com' } });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'wrongpass' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByText(/invalid email or password/i)).toBeInTheDocument());
+  });
+
+  it('switches back to phone tab correctly', () => {
+    switchToEmail();
+    fireEvent.click(screen.getByRole('button', { name: /phone/i }));
+    expect(screen.getByPlaceholderText(/98xxxxxxxx/i)).toBeInTheDocument();
   });
 });

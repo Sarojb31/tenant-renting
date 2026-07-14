@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { OtpRequestDto } from './dto/otp-request.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
+import { CustomerEmailLoginDto } from './dto/customer-email-login.dto';
 import { PublicTenant } from '@common/decorators/roles.decorator';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 
@@ -31,6 +32,18 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ accessToken: string }> {
     return this.authService.login(dto, res);
+  }
+
+  @ApiOperation({ summary: 'Customer email+password login (tenant-scoped)' })
+  @HttpCode(HttpStatus.OK)
+  @Post('customer/email-login')
+  customerEmailLogin(
+    @Body() dto: CustomerEmailLoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tenantId = (req as any).tenantId as string | null;
+    return this.authService.customerEmailLogin(dto, tenantId, res);
   }
 
   @ApiOperation({ summary: 'Send OTP to customer phone (tenant-scoped)' })
@@ -51,7 +64,7 @@ export class AuthController {
     @Body() dto: OtpVerifyDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ accessToken: string }> {
+  ) {
     const tenantId = (req as any).tenantId as string | null;
     return this.authService.verifyOtp(dto, tenantId, res);
   }

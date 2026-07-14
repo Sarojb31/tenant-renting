@@ -29,6 +29,9 @@ export class Customer extends TenantScopedEntity {
   @Column({ name: 'preferred_language', type: 'varchar', nullable: true })
   preferredLanguage!: string | null;
 
+  @Column({ name: 'password_hash', type: 'varchar', nullable: true })
+  passwordHash!: string | null;
+
   @Column({ name: 'refresh_token_hash', type: 'varchar', nullable: true })
   refreshTokenHash!: string | null;
 

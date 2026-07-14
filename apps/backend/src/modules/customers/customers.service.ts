@@ -60,6 +60,14 @@ export class CustomersService {
     return this.repo.save({ tenantId, phone, phoneVerified: true });
   }
 
+  findByEmail(tenantId: string, email: string): Promise<Customer | null> {
+    return this.repo.findOne({ where: { tenantId, email } });
+  }
+
+  async setPasswordHash(id: string, hash: string | null): Promise<void> {
+    await this.repo.update(id, { passwordHash: hash });
+  }
+
   async setRefreshTokenHash(id: string, hash: string | null): Promise<void> {
     await this.repo.update(id, { refreshTokenHash: hash });
   }
