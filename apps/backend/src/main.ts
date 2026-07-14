@@ -19,8 +19,12 @@ async function bootstrap() {
     }),
   );
 
+  const allowedOrigins = [
+    process.env.CUSTOMER_APP_BASE_URL || 'http://localhost:5173',
+    process.env.ADMIN_APP_BASE_URL || 'http://localhost:5174',
+  ];
   app.enableCors({
-    origin: process.env.CUSTOMER_APP_BASE_URL || 'http://localhost:5173',
+    origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin)),
     credentials: true,
   });
 
