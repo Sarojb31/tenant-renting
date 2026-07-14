@@ -1,8 +1,13 @@
 import axios from 'axios';
 
+const tenantId = import.meta.env.VITE_TENANT_ID as string | undefined;
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? '/api',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
+  },
   withCredentials: true,
 });
 
