@@ -11,9 +11,9 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:integration": "dotenv -e .env -- jest --config ./jest.integration.config.ts --runInBand",
-    "migration:run": "typeorm migration:run -d dist/config/typeorm.config.js",
-    "migration:revert": "typeorm migration:revert -d dist/config/typeorm.config.js",
-    "migration:generate": "typeorm migration:generate -d dist/config/typeorm.config.js",
+    "migration:run": "dotenv -e .env -- typeorm migration:run -d dist/src/config/typeorm.config.js",
+    "migration:revert": "dotenv -e .env -- typeorm migration:revert -d dist/src/config/typeorm.config.js",
+    "migration:generate": "dotenv -e .env -- typeorm migration:generate -d dist/src/config/typeorm.config.js",
     "seed": "dotenv -e .env -- ts-node --project tsconfig.json src/database/seeds/seed.ts"
   },
   "dependencies": {
