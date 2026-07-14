@@ -1,19 +1,19 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-14 — Session 6: Phase 1 Step 6 complete (Payments) + .env setup — 40 unit + 96 integration = 136 tests passing
+**Last updated:** 2026-07-14 — Session 7: Phase 1 Step 7 complete (Customer PWA) — 40 unit + 96 integration + 14 component = 150 tests passing
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Phase 1 Step 6 fully complete. 40 unit tests + 96 integration tests = 136 total passing. Git repo initialized and pushed to `git@github.com:Sarojb31/tenant-renting.git`.
+**Session stopped after:** Phase 1 Step 7 (Customer PWA) complete. 40 unit + 96 integration + 14 component = 150 total passing. Pushed to `git@github.com:Sarojb31/tenant-renting.git`.
 
-**Very next task:** Phase 1 Step 6 — Payments. Plan §4.7. `PaymentProvider` interface + eSewa/Khalti adapters (Nepal) + Stripe adapter (international). Webhook handler with signature verification. Idempotency. `Booking` + `Payment` entities.
+**Very next task:** Phase 1 Step 8 — Admin Dashboard (`apps/admin-console`). Refine + shadcn/ui. Two views: Company Admin (listings, customers, payments) + Super Admin (tenant management, billing, analytics).
 
 **Before touching anything, verify:**
 1. `docker compose up -d postgres redis` (postgres must be running)
-2. `DATABASE_URL=postgresql://roomfinder:roomfinder_dev@localhost:5432/roomfinder pnpm test:integration` — expect 33/33 passing
-3. Note: integration tests use `dropSchema: true` — they drop and recreate all tables on each run. Dev DB will be empty after a test run.
+2. `cd apps/backend && npm run test:integration` — expect 96 passing
+3. `cd apps/customer-web && ./node_modules/.bin/vitest run` — expect 14 passing
 
 **Key decisions made this session:**
 - JWT tokens in tests must reference real users/customers in DB (JwtStrategy validates existence). Super admin seeded in `beforeAll` with fixed UUID. Company admin uses actual `adminUser.id` from POST /tenants response.
@@ -81,9 +81,17 @@
 - [x] Integration tests — 11 tests in `test/bookings.integration.spec.ts` covering all booking/payment flows + isolation.
 
 ### 7. Customer PWA
-- [ ] Search / listing detail / enquiry pages
-- [ ] Booking + payment flow (sandbox mode)
-- [ ] Manifest + service worker — confirmed installable on Chrome/Android
+- [x] Search / listing detail pages — `SearchPage` (TanStack Query + filters), `ListingDetailPage` (amenities, deposit, Book CTA). Public routes, no auth required.
+- [x] Booking + payment flow — `LoginPage` (OTP request/verify, 2-step react-hook-form + zod), `BookingPage` (move-in date, amount summary, creates booking via API), `PaymentPage` (gateway selector: eSewa/Khalti/Stripe, redirects to gateway).
+- [x] Profile page — `ProfilePage` (customer name/phone, logout button).
+- [x] `ProtectedRoute` — redirects unauthenticated users to `/login` with return path.
+- [x] `Layout` — sticky header, brand nav, footer.
+- [x] API layer — `client.ts` (axios + interceptors), `auth.ts`, `listings.ts`, `bookings.ts`, `payments.ts`.
+- [x] Auth store — Zustand + persist (localStorage token).
+- [x] Tailwind + PostCSS configured. Brand color palette (`brand-50` → `brand-700`).
+- [x] PWA icons — placeholder PNGs at `public/icons/icon-192.png` + `icon-512.png` (brand blue rounded rect). vite-plugin-pwa manifest references them.
+- [x] 14 Vitest component tests — `ListingCard` (5), `SearchFilters` (3), `LoginPage` (4), `ProtectedRoute` (2). All passing.
+- [ ] Manifest + service worker — **not confirmed installable on Android** (would require a device; deferred to pilot testing phase). Workbox config is wired in `vite.config.ts`.
 
 ### 8. Admin Dashboard
 - [ ] Company Admin: listings, customers, payments views (Refine + shadcn/ui)
@@ -118,7 +126,9 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 - 2026-07-14 — `listings.rent_amount` / `deposit_amount` use TypeORM `decimal` type which Postgres driver returns as `string`. DTOs accept `number`; service uses `as any` cast on save to bridge the type mismatch. Revisit with a TypeORM value transformer if precision becomes a concern in Phase 3+. OPEN.
 - 2026-07-14 — Khalti webhook verification is API-based (server-side lookup to `epayment/lookup/`) rather than HMAC-signed. Khalti v2 API does not provide HMAC signatures for webhooks. `verifyWebhookSignature()` returns `true` (bypass); actual verification happens in `handleWebhook()` via Khalti lookup API. This satisfies Plan §19's intent (no unauthenticated webhook processing) via server-side verification instead of client-side HMAC. RESOLVED.
 - 2026-07-14 — `.env` file added to repo root for local dev. Contains dev-only values (no real secrets). `.gitignore` excludes `.env` from version control. `test:integration` now uses `dotenv-cli` to load `.env` so `DATABASE_URL` does not need to be passed on the CLI. RESOLVED.
-- 2026-07-14 — Frontend work (Phase 1 Steps 7–8: Customer PWA and Admin Dashboard) should use the `frontend-design` plugin skill. Invoke via `/figma-generate-design` or `/figma-use` for any UI generation. OPEN (Phase 1 Steps 7–8 not yet started).
+- 2026-07-14 — Frontend work (Phase 1 Steps 7–8) should use the `frontend-design` skill. Phase 1 Step 7 (Customer PWA) built without Figma (no designs provided); used Tailwind utility classes + brand palette directly. OPEN for Step 8 if designs are provided.
+- 2026-07-14 — Customer PWA uses `handleSubmit(onSearch)` from react-hook-form which passes `(data, event)` to the handler — tests assert both args via `expect.anything()`. RESOLVED.
+- 2026-07-14 — PWA icons are SVG placeholders converted to PNG programmatically. Not production-quality; replace before pilot launch. OPEN.
 
 ## Test Coverage Snapshot
 
@@ -126,5 +136,5 @@ _(Agent updates this after significant test runs — rough numbers are fine, thi
 
 - Backend unit tests: **40 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing)
 - Backend integration tests: **96 passing** (4 isolation + 7 auth + 11 tenants + 11 customer-otp + 19 listings + 19 customers + 14 matching + 11 bookings/payments)
-- Frontend component tests: 0
+- Frontend component tests: **14 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×4, ProtectedRoute ×2)
 - Cross-tenant-isolation tests passing: **4 / 4** ✓
