@@ -5,14 +5,20 @@ import { PaymentProvider } from '../payment.provider.interface';
 
 @Injectable()
 export class StripeAdapter implements PaymentProvider {
-  private readonly client: Stripe;
+  private readonly client: Stripe | null;
   private readonly webhookSecret: string;
 
   constructor(private readonly config: ConfigService) {
-    this.client = new Stripe(config.get<string>('payments.stripe.secretKey') ?? '', {
-      apiVersion: '2026-06-24.dahlia',
-    });
+    const secretKey = config.get<string>('payments.stripe.secretKey') ?? '';
+    this.client = secretKey
+      ? new Stripe(secretKey, { apiVersion: '2026-06-24.dahlia' })
+      : null;
     this.webhookSecret = config.get<string>('payments.stripe.webhookSecret') ?? '';
+  }
+
+  private get stripe(): Stripe {
+    if (!this.client) throw new Error('Stripe not configured (STRIPE_SECRET_KEY missing)');
+    return this.client;
   }
 
   async createPaymentIntent(
@@ -20,7 +26,7 @@ export class StripeAdapter implements PaymentProvider {
     currency: string,
     metadata: Record<string, unknown>,
   ): Promise<{ redirectUrl?: string; clientSecret?: string; providerRef: string }> {
-    const pi = await this.client.paymentIntents.create({
+    const pi = await this.stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: currency.toLowerCase(),
       metadata: { bookingId: String(metadata.bookingId ?? '') },
@@ -29,7 +35,7 @@ export class StripeAdapter implements PaymentProvider {
   }
 
   verifyWebhookSignature(payload: unknown, signature: string): boolean {
-    this.client.webhooks.constructEvent(
+    this.stripe.webhooks.constructEvent(
       payload as Buffer,
       signature,
       this.webhookSecret,
