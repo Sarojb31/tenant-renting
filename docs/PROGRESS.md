@@ -1,6 +1,6 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-14 — Session 7: Phase 1 Step 7 complete (Customer PWA) — 40 unit + 96 integration + 14 component = 150 tests passing
+**Last updated:** 2026-07-14 — Session 8: Phase 1 Steps 7+8 complete (Customer PWA + Admin Dashboard) — 40 unit + 96 integration + 14 PWA + 21 admin = 171 tests passing
 
 ---
 
@@ -8,12 +8,14 @@
 
 **Session stopped after:** Phase 1 Step 7 (Customer PWA) complete. 40 unit + 96 integration + 14 component = 150 total passing. Pushed to `git@github.com:Sarojb31/tenant-renting.git`.
 
-**Very next task:** Phase 1 Step 8 — Admin Dashboard (`apps/admin-console`). Refine + shadcn/ui. Two views: Company Admin (listings, customers, payments) + Super Admin (tenant management, billing, analytics).
+**Very next task:** Phase 2 planning — WhatsApp integration, AI-assisted matching, Facebook Page integration. Review Plan §9 Phase 2 before starting.
 
 **Before touching anything, verify:**
 1. `docker compose up -d postgres redis` (postgres must be running)
 2. `cd apps/backend && npm run test:integration` — expect 96 passing
-3. `cd apps/customer-web && ./node_modules/.bin/vitest run` — expect 14 passing
+3. `cd apps/backend && npm run seed` — creates super admin + demo company admin
+4. `cd apps/customer-web && ./node_modules/.bin/vitest run` — expect 14 passing
+5. `cd apps/admin-console && ./node_modules/.bin/vitest run` — expect 21 passing
 
 **Key decisions made this session:**
 - JWT tokens in tests must reference real users/customers in DB (JwtStrategy validates existence). Super admin seeded in `beforeAll` with fixed UUID. Company admin uses actual `adminUser.id` from POST /tenants response.
@@ -94,8 +96,18 @@
 - [ ] Manifest + service worker — **not confirmed installable on Android** (would require a device; deferred to pilot testing phase). Workbox config is wired in `vite.config.ts`.
 
 ### 8. Admin Dashboard
-- [ ] Company Admin: listings, customers, payments views (Refine + shadcn/ui)
-- [ ] Super Admin: tenant management, billing, platform analytics views
+- [x] Company Admin: Dashboard (StatCards + recent listings/payments), Listings (table + publish/archive actions), Customers (table + SMS opt-in), Payments (table + revenue total). Tailwind dark sidebar + white content area design.
+- [x] Super Admin: Platform overview (tenant counts by status + StatCards), Tenants (table + activate/suspend actions).
+- [x] Login page — dark split layout (brand panel left, form right). Email + password, JWT stored in localStorage via Zustand store. Role-based redirect (super_admin → /super/dashboard, company_admin → /company/dashboard).
+- [x] `ProtectedRoute` with `requireRole` — company_admin cannot access super admin routes.
+- [x] `StatusBadge` — consistent color-coded pills for all system statuses (published, pending, success, failed, draft, archived, suspended, trial, refunded).
+- [x] `StatCard` — metric cards with live indicator (pulsing dot) and accent color variants.
+- [x] `DataTable` — TanStack Table v8 wrapper with loading skeletons and empty state.
+- [x] `Sidebar` — dark (#0F1117) sticky nav with role badge, nav groups, logout.
+- [x] 21 Vitest component tests — StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4. All passing.
+- [x] Seed script (`apps/backend/npm run seed`) — creates super admin + demo company admin with argon2-hashed passwords.
+- [x] README updated with seed credentials and login instructions.
+- [ ] Billing / analytics views — deferred to Phase 2 (no billing data model yet).
 
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)
 
@@ -136,5 +148,6 @@ _(Agent updates this after significant test runs — rough numbers are fine, thi
 
 - Backend unit tests: **40 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing)
 - Backend integration tests: **96 passing** (4 isolation + 7 auth + 11 tenants + 11 customer-otp + 19 listings + 19 customers + 14 matching + 11 bookings/payments)
-- Frontend component tests: **14 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×4, ProtectedRoute ×2)
+- Frontend component tests (customer-web): **14 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×4, ProtectedRoute ×2)
+- Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)
 - Cross-tenant-isolation tests passing: **4 / 4** ✓
