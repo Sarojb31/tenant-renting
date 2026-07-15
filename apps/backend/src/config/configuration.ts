@@ -57,8 +57,9 @@ export default () => ({
   },
 
   facebook: {
-    pageAccessToken: process.env.FB_PAGE_ACCESS_TOKEN,
-    webhookVerifyToken: process.env.FB_WEBHOOK_VERIFY_TOKEN,
+    appSecret: process.env.FB_APP_SECRET ?? '',
+    verifyToken: process.env.FB_WEBHOOK_VERIFY_TOKEN ?? '',
+    pageAccessToken: process.env.FB_PAGE_ACCESS_TOKEN ?? '',
   },
 
   app: {

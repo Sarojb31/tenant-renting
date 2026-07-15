@@ -36,6 +36,7 @@ export const validationSchema = Joi.object({
   CUSTOMER_APP_BASE_URL: Joi.string().default('http://localhost:5173'),
 
   // Phase 3 — optional
+  FB_APP_SECRET: Joi.string().optional().allow(''),
   FB_PAGE_ACCESS_TOKEN: Joi.string().optional().allow(''),
   FB_WEBHOOK_VERIFY_TOKEN: Joi.string().optional().allow(''),
 });

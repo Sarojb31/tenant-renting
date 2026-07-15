@@ -13,6 +13,67 @@ import {
   type Listing,
 } from '../../api/listings';
 
+function buildShareText(listing: Listing): string {
+  const rent = Number(listing.rentAmount).toLocaleString();
+  const type = listing.roomType.replace('_', ' ');
+  return [
+    `🏠 ${listing.title} — ${listing.city}`,
+    `💰 NPR ${rent}/month`,
+    `🛏️ ${type.charAt(0).toUpperCase() + type.slice(1)} room`,
+    '',
+    'Interested? Message our Facebook Page to schedule a viewing!',
+    '',
+    `📋 Ref: ${listing.id.slice(0, 8)}`,
+  ].join('\n');
+}
+
+function ShareModal({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const text = buildShareText(listing);
+
+  function copy() {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md space-y-4 p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-800">Share to Facebook</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+        </div>
+        <p className="text-xs text-gray-500">
+          Copy this text, then paste it when creating your Facebook post or Marketplace listing.
+          Interested buyers will message your Facebook Page inbox.
+        </p>
+        <textarea
+          readOnly
+          value={text}
+          rows={8}
+          className="w-full border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-700 bg-gray-50 resize-none focus:outline-none"
+        />
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Close
+          </button>
+          <button
+            onClick={copy}
+            className="text-sm px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          >
+            {copied ? 'Copied!' : 'Copy Text'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const col = createColumnHelper<Listing>();
 
 function AvailabilityPanel({ listing, onClose }: { listing: Listing; onClose: () => void }) {
@@ -134,6 +195,7 @@ export function ListingsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [shareListingId, setShareListingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['listings', { statusFilter, search }],
@@ -194,6 +256,13 @@ export function ListingsPage() {
               className="text-xs text-gray-500 hover:text-brand-600 hover:underline"
             >
               Availability
+            </button>
+            <button
+              onClick={() => setShareListingId(row.id)}
+              className="text-xs text-blue-500 hover:underline"
+              title="Generate Facebook share text"
+            >
+              Share
             </button>
             {row.status !== 'published' && row.status !== 'occupied' && (
               <button
@@ -262,6 +331,13 @@ export function ListingsPage() {
           ) : null;
         })()}
       </div>
+
+      {shareListingId && (() => {
+        const shareListing = listings.find((l) => l.id === shareListingId);
+        return shareListing ? (
+          <ShareModal listing={shareListing} onClose={() => setShareListingId(null)} />
+        ) : null;
+      })()}
     </Layout>
   );
 }

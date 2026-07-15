@@ -1,6 +1,13 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonModule } from '@common/common.module';
+import { FbPageLead } from './fb-page-lead.entity';
+import { FacebookService } from './facebook.service';
+import { FacebookController } from './facebook.controller';
 
-// Implements: Plan Section 4.12 (Phase 3 — Facebook Page webhook)
-// NOT part of MVP. Do not implement until Phase 3.
-@Module({})
+@Module({
+  imports: [TypeOrmModule.forFeature([FbPageLead]), CommonModule],
+  providers: [FacebookService],
+  controllers: [FacebookController],
+})
 export class FacebookIntegrationModule {}

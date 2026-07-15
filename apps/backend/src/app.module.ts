@@ -18,6 +18,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { AmenitiesModule } from './modules/amenities/amenities.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { FacebookIntegrationModule } from './modules/facebook-integration/facebook-integration.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     AmenitiesModule,
     SubscriptionsModule,
     AnalyticsModule,
+    FacebookIntegrationModule,
     // Feature modules (added as implemented — see docs/PROGRESS.md)
   ],
   providers: [
