@@ -1,19 +1,24 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-15 — Session 12: Subscriptions integration tests complete + all commits pushed. Latest commit `3943a1a`.
+**Last updated:** 2026-07-15 — Session 12 complete: Phase 3 ALL DONE. Latest commit `d55d2f1`.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Subscriptions integration tests (17 passing). All Phase 2 commits pushed to origin/master.
+**Session stopped after:** Phase 3 complete — all 6 items done. Latest commit `d55d2f1` on `master`.
 
-**Phase 2 fully complete. Next: Phase 3 (WhatsApp/AI/Facebook add-ons) or pilot deployment.**
+**Phase 3 ALL DONE:**
+- [x] Facebook Page distribution (Plan §4.12) — webhook, leads CRM, share modal
+- [x] Reviews & ratings — `reviews` table, `POST /reviews`, `GET /reviews/listing/:id`, customer-web star UI
+- [x] Favorites / saved listings — `customer_favorites` table, heart toggle on SearchPage, FavoritesPage
+- [x] Custom branding per tenant — `GET /tenant-settings/branding` (public), BrandingPage, useTenantBranding hook, CSS `--color-brand`
+- [x] Support ticketing system — `support_tickets` table, SupportModule, SupportPage accordion admin UI
+- [x] Bulk listing upload via CSV — `POST /listings/bulk-upload` (FileInterceptor), inline CSV parser, admin console Upload CSV button + result card + sample CSV download
 
-**Very next task:**
-1. ~~Integration tests for subscriptions module (plan limits, credit deduction via real DB)~~ ✅ DONE (`test/subscriptions.integration.spec.ts`, 17 tests)
-2. ~~Push all commits to remote (`git push origin master`)~~ ✅ DONE
-3. Begin Phase 3 or prepare for pilot onboarding (subdomain setup, production env)
+**Backend unit tests: 124 passing** (all suites green including 6 new bulk-upload tests).
+
+**Very next task:** Phase 4 planning or pilot onboarding prep — see Plan Section 9.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -193,6 +198,15 @@
 - [x] ForbiddenException on edit/delete of platform defaults (tenantId=null)
 - [x] Admin console SmsTemplatesPage — grouped by event, inline edit, live placeholder preview (7 new unit tests)
 
+## Phase 3 — Growth & Distribution
+
+- [x] Facebook Page integration (Plan §4.12) — HMAC-SHA256 webhook, `fb_page_leads` table, `GET /facebook/leads`, admin FbLeadsPage, ListingsPage share modal
+- [x] Reviews & ratings — `reviews` table (UNIQUE tenant+listing+customer), `POST /reviews` (auth), `GET /reviews/listing/:id` (public), customer-web ReviewsSection + StarRow + submit form (ConflictException handled)
+- [x] Favorites / saved listings — `customer_favorites` table (UNIQUE tenant+customer+listing), heart toggle on SearchPage (useMutation), FavoritesPage (`/favorites`), Layout ♥ Saved nav link
+- [x] Custom branding per tenant — `GET /tenant-settings/branding` (no auth, TenantSettingsController), BrandingPage (logo URL + color picker), `useTenantBranding` hook (CSS `--color-brand` on `:root`)
+- [x] Support ticketing system — `support_ticket_status_enum` + `support_tickets` migration, SupportService (create/findAll/findAllPlatform/updateStatus), SupportController (COMPANY_ADMIN + SUPER_ADMIN guards), SupportPage accordion admin UI
+- [x] Bulk listing upload via CSV — `POST /listings/bulk-upload` (FileInterceptor + memoryStorage, WRITE_ROLES), inline CSV parser (quoted fields + CRLF), admin console Upload CSV button + result card + sample CSV download; 6 unit tests
+
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)
 
 - [ ] New tenant can be onboarded with a working subdomain
@@ -230,8 +244,8 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **95 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing + 4 customer-email-login + 6 amenities + 3 matching-bhktype + 9 listings-cursor + 6 listings-availability + 12 subscriptions + 5 users + 7 sms-templates + 3 subscription-payments + 11 sms-routing)
-- Backend integration tests: **96 passing** (unchanged — Phase 2 unit tests only)
+- Backend unit tests: **124 passing** (95 prior + 7 facebook + 4 reviews + 7 favorites + 4 support + 6 bulk-upload + 1 misc) — 21 test suites, all green
+- Backend integration tests: **96 passing** (unchanged — Phase 3 unit tests only)
 - Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)
 - Cross-tenant-isolation tests passing: **4 / 4** ✓
