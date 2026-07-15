@@ -9,14 +9,35 @@ const ROOM_TYPE_LABELS: Record<string, string> = {
   studio: 'Studio',
 };
 
-export function ListingCard({ listing }: { listing: Listing }) {
+interface ListingCardProps {
+  listing: Listing;
+  isFavorited?: boolean;
+  onToggleFavorite?: (listingId: string, isFavorited: boolean) => void;
+}
+
+export function ListingCard({ listing, isFavorited = false, onToggleFavorite }: ListingCardProps) {
   return (
     <Link
       to={`/listings/${listing.id}`}
       className="block bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow overflow-hidden"
     >
-      <div className="bg-gray-100 h-40 flex items-center justify-center text-gray-300 text-4xl">
+      <div className="relative bg-gray-100 h-40 flex items-center justify-center text-gray-300 text-4xl">
         🏠
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFavorite(listing.id, isFavorited);
+            }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow-sm hover:bg-white transition-colors"
+            aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <span className={`text-lg leading-none ${isFavorited ? 'text-red-500' : 'text-gray-300'}`}>
+              ♥
+            </span>
+          </button>
+        )}
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">

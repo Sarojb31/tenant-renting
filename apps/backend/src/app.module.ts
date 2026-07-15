@@ -20,6 +20,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FacebookIntegrationModule } from './modules/facebook-integration/facebook-integration.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     AnalyticsModule,
     FacebookIntegrationModule,
     ReviewsModule,
+    FavoritesModule,
     // Feature modules (added as implemented — see docs/PROGRESS.md)
   ],
   providers: [

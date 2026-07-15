@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { ListingCard } from '../components/ListingCard';
 import { SearchFilters, type Filters } from '../components/SearchFilters';
 import { fetchListings } from '../api/listings';
+import { fetchFavoriteIds, addFavorite, removeFavorite } from '../api/favorites';
+import { useAuthStore } from '../store/auth.store';
 
 const EMPTY: Filters = { city: '', roomType: '', bhkType: '', numberOfRooms: '', minRent: '', maxRent: '', amenityIds: '' };
 
@@ -17,6 +19,20 @@ export function SearchPage() {
   };
   const [filters, setFilters] = useState<Filters>(initial);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { token } = useAuthStore();
+  const qc = useQueryClient();
+
+  const { data: favoriteIds } = useQuery({
+    queryKey: ['favorites'],
+    queryFn: () => fetchFavoriteIds().then((r) => r.data),
+    enabled: !!token,
+  });
+
+  const toggleFavorite = useMutation({
+    mutationFn: ({ listingId, isFav }: { listingId: string; isFav: boolean }) =>
+      isFav ? removeFavorite(listingId) : addFavorite(listingId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['favorites'] }),
+  });
 
   const {
     data,
@@ -75,7 +91,12 @@ export function SearchPage() {
         {listings.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {listings.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                isFavorited={favoriteIds?.includes(listing.id) ?? false}
+                onToggleFavorite={token ? (id, isFav) => toggleFavorite.mutate({ listingId: id, isFav }) : undefined}
+              />
             ))}
           </div>
         )}

@@ -21,6 +21,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link to="/" className="text-gray-600 hover:text-brand-600">Search</Link>
             {customer ? (
               <>
+                <Link to="/favorites" className="text-gray-600 hover:text-brand-600">♥ Saved</Link>
                 <Link to="/profile" className="text-gray-600 hover:text-brand-600">Profile</Link>
                 <button
                   onClick={handleLogout}

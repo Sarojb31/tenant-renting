@@ -7,6 +7,7 @@ import { BookingPage } from './pages/BookingPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { PaymentSuccessPage } from './pages/PaymentSuccessPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { FavoritesPage } from './pages/FavoritesPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -28,6 +29,10 @@ function App() {
       <Route
         path="/profile"
         element={<ProtectedRoute><ProfilePage /></ProtectedRoute>}
+      />
+      <Route
+        path="/favorites"
+        element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>}
       />
     </Routes>
   );
