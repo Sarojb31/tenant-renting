@@ -12,17 +12,18 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
   ParseIntPipe,
   DefaultValuePipe,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
-import { ListingsService, ListingPage, ListingAvailability } from './listings.service';
+import { ListingsService, ListingPage, ListingAvailability, BulkUploadResult } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
@@ -105,6 +106,20 @@ export class ListingsController {
   @Delete(':id')
   archive(@Param('id', ParseUUIDPipe) id: string): Promise<Listing> {
     return this.listingsService.archive(id);
+  }
+
+  @ApiOperation({ summary: 'Bulk create listings from a CSV file (Staff/Admin only)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...WRITE_ROLES)
+  @Post('bulk-upload')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  bulkUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ): Promise<BulkUploadResult> {
+    const user = req.user as JwtPayload;
+    return this.listingsService.bulkUpload(user.sub, file.buffer);
   }
 
   @ApiOperation({ summary: 'Upload images to a listing (Staff/Admin only — not Agent)' })

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -12,10 +12,38 @@ import { Booking } from '@modules/payments/booking.entity';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
 import { ListingStatus } from '@common/enums/listing-status.enum';
+import { RoomType } from '@common/enums/room-type.enum';
+import { BhkType } from '@common/enums/bhk-type.enum';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { ListingFilterDto } from './dto/listing-filter.dto';
+
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let cur = '';
+  let inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuote) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuote = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuote = true; }
+      else if (ch === ',') { fields.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+export interface BulkUploadResult {
+  created: number;
+  failed: number;
+  errors: string[];
+}
 
 export interface ListingAvailability {
   id: string;
@@ -246,6 +274,52 @@ export class ListingsService {
     await this.repo.save(listing);
 
     return this.getAvailability(id);
+  }
+
+  async bulkUpload(userId: string, csvBuffer: Buffer): Promise<BulkUploadResult> {
+    const text = csvBuffer.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = text.split('\n').filter((l) => l.trim());
+    if (lines.length < 2) throw new BadRequestException('CSV must have a header row and at least one data row');
+
+    const headers = parseCsvLine(lines[0]);
+    const result: BulkUploadResult = { created: 0, failed: 0, errors: [] };
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCsvLine(lines[i]);
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => { row[h.trim()] = (values[idx] ?? '').trim(); });
+
+      try {
+        const dto: CreateListingDto = {
+          title: row['title'] || '',
+          roomType: row['roomType'] as RoomType,
+          rentAmount: parseFloat(row['rentAmount']),
+          ...(row['description'] && { description: row['description'] }),
+          ...(row['bhkType'] && { bhkType: row['bhkType'] as BhkType }),
+          ...(row['numberOfRooms'] && { numberOfRooms: parseInt(row['numberOfRooms'], 10) }),
+          ...(row['depositAmount'] && { depositAmount: parseFloat(row['depositAmount']) }),
+          ...(row['currency'] && { currency: row['currency'] }),
+          ...(row['address'] && { address: row['address'] }),
+          ...(row['city'] && { city: row['city'] }),
+          ...(row['availableFrom'] && { availableFrom: row['availableFrom'] }),
+          ...(row['status'] && { status: row['status'] as ListingStatus }),
+        };
+        if (!dto.title) throw new Error('title is required');
+        if (!dto.roomType || !Object.values(RoomType).includes(dto.roomType)) {
+          throw new Error(`invalid roomType "${row['roomType']}"`);
+        }
+        if (!dto.rentAmount || isNaN(dto.rentAmount) || dto.rentAmount <= 0) {
+          throw new Error('rentAmount must be a positive number');
+        }
+        await this.create(dto, userId);
+        result.created++;
+      } catch (err) {
+        result.failed++;
+        result.errors.push(`Row ${i + 1}: ${(err as Error).message}`);
+      }
+    }
+
+    return result;
   }
 
   private async dispatchMatchJob(listingId: string, tenantId: string): Promise<void> {

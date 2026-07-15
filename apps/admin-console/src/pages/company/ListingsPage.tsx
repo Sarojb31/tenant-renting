@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { Layout } from '../../components/Layout';
@@ -10,8 +10,26 @@ import {
   updateListing,
   updateAvailability,
   deleteListing,
+  bulkUploadListings,
   type Listing,
+  type BulkUploadResult,
 } from '../../api/listings';
+
+const SAMPLE_CSV = [
+  'title,roomType,rentAmount,description,bhkType,numberOfRooms,depositAmount,currency,address,city,availableFrom',
+  '"Cozy Studio",studio,15000,"Sunny room near market",,1,30000,NPR,"Main St 12",Kathmandu,2025-09-01',
+  '"2BHK Apartment",apartment,28000,"Furnished flat",,2,56000,NPR,"Ring Rd 45",Lalitpur,',
+].join('\n');
+
+function downloadSampleCsv() {
+  const blob = new Blob([SAMPLE_CSV], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'listings-sample.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function buildShareText(listing: Listing): string {
   const rent = Number(listing.rentAmount).toLocaleString();
@@ -196,6 +214,16 @@ export function ListingsPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [shareListingId, setShareListingId] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadCsv = useMutation({
+    mutationFn: (file: File) => bulkUploadListings(file).then((r) => r.data),
+    onSuccess: (result) => {
+      setUploadResult(result);
+      void qc.invalidateQueries({ queryKey: ['listings'] });
+    },
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['listings', { statusFilter, search }],
@@ -291,7 +319,7 @@ export function ListingsPage() {
   return (
     <Layout title="Listings">
       <div className="space-y-4">
-        {/* Filters */}
+        {/* Filters + upload */}
         <div className="flex flex-wrap items-center gap-3">
           <input
             value={search}
@@ -310,12 +338,61 @@ export function ListingsPage() {
             <option value="draft">Draft</option>
             <option value="archived">Archived</option>
           </select>
+
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={downloadSampleCsv}
+              className="text-xs text-gray-500 hover:text-gray-700 underline"
+            >
+              Sample CSV
+            </button>
+            <button
+              onClick={() => { setUploadResult(null); fileInputRef.current?.click(); }}
+              disabled={uploadCsv.isPending}
+              className="bg-brand-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+            >
+              {uploadCsv.isPending ? 'Uploading…' : '↑ Upload CSV'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadCsv.mutate(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
+
           {data && (
-            <span className="text-sm text-gray-500 ml-auto">
+            <span className="text-sm text-gray-500">
               {data.total} listing{data.total !== 1 ? 's' : ''}
             </span>
           )}
         </div>
+
+        {/* Upload result */}
+        {uploadResult && (
+          <div className={`rounded-xl border px-4 py-3 text-sm space-y-1 ${
+            uploadResult.failed === 0
+              ? 'bg-green-50 border-green-200'
+              : 'bg-amber-50 border-amber-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-gray-700">
+                Upload complete — {uploadResult.created} created, {uploadResult.failed} failed
+              </span>
+              <button onClick={() => setUploadResult(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            </div>
+            {uploadResult.errors.length > 0 && (
+              <ul className="text-xs text-red-600 space-y-0.5 mt-1 pl-1">
+                {uploadResult.errors.map((e, i) => <li key={i}>• {e}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
 
         <DataTable
           data={listings}

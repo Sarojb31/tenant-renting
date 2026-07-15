@@ -47,3 +47,13 @@ export const updateAvailability = (id: string, body: { availableFrom?: string; s
   api.patch<ListingAvailability>(`/listings/${id}/availability`, body);
 
 export const deleteListing = (id: string) => api.delete(`/listings/${id}`);
+
+export interface BulkUploadResult { created: number; failed: number; errors: string[] }
+
+export const bulkUploadListings = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<BulkUploadResult>('/listings/bulk-upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};
