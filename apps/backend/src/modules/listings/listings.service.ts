@@ -8,12 +8,21 @@ import { FILE_STORAGE_PROVIDER, FileStorageProvider } from '@modules/storage/fil
 import { MATCHING_QUEUE, MatchListingJobData } from '@modules/matching/matching.processor';
 import { AmenitiesService } from '@modules/amenities/amenities.service';
 import { SubscriptionsService } from '@modules/subscriptions/subscriptions.service';
+import { Booking } from '@modules/payments/booking.entity';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
 import { ListingStatus } from '@common/enums/listing-status.enum';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { ListingFilterDto } from './dto/listing-filter.dto';
+
+export interface ListingAvailability {
+  id: string;
+  status: ListingStatus;
+  availableFrom: string | null;
+  bookings: { id: string; moveInDate: string | null; status: string; customerId: string }[];
+}
 
 export interface ListingPage {
   data: Listing[];
@@ -43,6 +52,8 @@ export class ListingsService {
     private readonly repo: Repository<Listing>,
     @InjectRepository(ListingImage)
     private readonly imageRepo: Repository<ListingImage>,
+    @InjectRepository(Booking)
+    private readonly bookingRepo: Repository<Booking>,
     private readonly ctx: TenantContextService,
     private readonly amenitiesService: AmenitiesService,
     private readonly subscriptions: SubscriptionsService,
@@ -199,6 +210,42 @@ export class ListingsService {
 
   findImages(listingId: string): Promise<ListingImage[]> {
     return this.imageRepo.find({ where: { listingId }, order: { sortOrder: 'ASC' } });
+  }
+
+  async getAvailability(id: string): Promise<ListingAvailability> {
+    const tenantId = this.ctx.getRequiredTenantId();
+    const listing = await this.repo.findOne({ where: { id, tenantId } });
+    if (!listing) throw new NotFoundException('Listing not found');
+
+    const bookings = await this.bookingRepo.find({
+      where: { listingId: id, tenantId },
+      order: { moveInDate: 'ASC' },
+      select: ['id', 'moveInDate', 'status', 'customerId'],
+    });
+
+    return {
+      id: listing.id,
+      status: listing.status,
+      availableFrom: listing.availableFrom,
+      bookings: bookings.map((b) => ({
+        id: b.id,
+        moveInDate: b.moveInDate,
+        status: b.status,
+        customerId: b.customerId,
+      })),
+    };
+  }
+
+  async updateAvailability(id: string, dto: UpdateAvailabilityDto): Promise<ListingAvailability> {
+    const tenantId = this.ctx.getRequiredTenantId();
+    const listing = await this.repo.findOne({ where: { id, tenantId } });
+    if (!listing) throw new NotFoundException('Listing not found');
+
+    if (dto.availableFrom !== undefined) listing.availableFrom = dto.availableFrom;
+    if (dto.status !== undefined) listing.status = dto.status;
+    await this.repo.save(listing);
+
+    return this.getAvailability(id);
   }
 
   private async dispatchMatchJob(listingId: string, tenantId: string): Promise<void> {

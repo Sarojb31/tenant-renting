@@ -1,6 +1,7 @@
 import { ListingsService } from './listings.service';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
+import { Booking } from '@modules/payments/booking.entity';
 import { ListingStatus } from '@common/enums/listing-status.enum';
 import { BhkType } from '@common/enums/bhk-type.enum';
 import { RoomType } from '@common/enums/room-type.enum';
@@ -53,7 +54,8 @@ function buildService(rows: Listing[]): { svc: ListingsService; qb: ReturnType<t
     count: jest.fn().mockResolvedValue(0),
   } as unknown as Repository<Listing>;
   const imageRepo = { find: jest.fn() } as unknown as Repository<ListingImage>;
-  const svc = new ListingsService(repo, imageRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue);
+  const bookingRepo = { find: jest.fn().mockResolvedValue([]) } as unknown as Repository<Booking>;
+  const svc = new ListingsService(repo, imageRepo, bookingRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue);
   return { svc, qb };
 }
 
@@ -62,7 +64,8 @@ describe('ListingsService.findAll cursor pagination', () => {
     const ctxNoTenant = { getTenantId: () => null };
     const repo = { createQueryBuilder: jest.fn() } as unknown as Repository<Listing>;
     const imageRepo = { find: jest.fn() } as unknown as Repository<ListingImage>;
-    const svc = new ListingsService(repo, imageRepo, ctxNoTenant as never, amenitiesService as never, subscriptions as never, storage as never, queue);
+    const bookingRepo = { find: jest.fn() } as unknown as Repository<Booking>;
+    const svc = new ListingsService(repo, imageRepo, bookingRepo, ctxNoTenant as never, amenitiesService as never, subscriptions as never, storage as never, queue);
     const result = await svc.findAll();
     expect(result).toEqual({ data: [], nextCursor: null });
     expect(repo.createQueryBuilder).not.toHaveBeenCalled();

@@ -22,9 +22,10 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
-import { ListingsService, ListingPage } from './listings.service';
+import { ListingsService, ListingPage, ListingAvailability } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { ListingFilterDto } from './dto/listing-filter.dto';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
@@ -115,5 +116,26 @@ export class ListingsController {
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<ListingImage[]> {
     return this.listingsService.addImages(id, files);
+  }
+
+  @ApiOperation({ summary: 'Get availability info for a listing (Staff/Admin only)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...STAFF_ROLES)
+  @Get(':id/availability')
+  getAvailability(@Param('id', ParseUUIDPipe) id: string): Promise<ListingAvailability> {
+    return this.listingsService.getAvailability(id);
+  }
+
+  @ApiOperation({ summary: 'Update availability for a listing (Staff/Admin only)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...STAFF_ROLES)
+  @Patch(':id/availability')
+  updateAvailability(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAvailabilityDto,
+  ): Promise<ListingAvailability> {
+    return this.listingsService.updateAvailability(id, dto);
   }
 }
