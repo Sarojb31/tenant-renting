@@ -33,6 +33,9 @@ export class CustomerPreference {
   @Column({ name: 'room_type', type: 'varchar', nullable: true })
   roomType!: string | null;
 
+  @Column({ name: 'bhk_type', type: 'varchar', nullable: true })
+  bhkType!: string | null;
+
   @Column({ name: 'move_in_date', type: 'date', nullable: true })
   moveInDate!: string | null;
 

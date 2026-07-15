@@ -8,6 +8,7 @@ import { ListingsController } from './listings.controller';
 import { CommonModule } from '@common/common.module';
 import { StorageModule } from '@modules/storage/storage.module';
 import { MATCHING_QUEUE } from '@modules/matching/matching.processor';
+import { AmenitiesModule } from '@modules/amenities/amenities.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MATCHING_QUEUE } from '@modules/matching/matching.processor';
     BullModule.registerQueue({ name: MATCHING_QUEUE }),
     CommonModule,
     StorageModule,
+    AmenitiesModule,
   ],
   providers: [ListingsService],
   controllers: [ListingsController],

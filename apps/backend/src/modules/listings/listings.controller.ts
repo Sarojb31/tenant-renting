@@ -20,7 +20,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
-import { ListingsService } from './listings.service';
+import { ListingsService, ListingPage } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { ListingFilterDto } from './dto/listing-filter.dto';
@@ -39,9 +39,9 @@ const STAFF_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF, UserRole.AGENT];
 export class ListingsController {
   constructor(private readonly listingsService: ListingsService) {}
 
-  @ApiOperation({ summary: 'List published listings for this tenant (public, filterable)' })
+  @ApiOperation({ summary: 'List published listings for this tenant (cursor-paginated, filterable)' })
   @Get()
-  findAll(@Query() filters: ListingFilterDto): Promise<Listing[]> {
+  findAll(@Query() filters: ListingFilterDto): Promise<ListingPage> {
     return this.listingsService.findAll(filters);
   }
 

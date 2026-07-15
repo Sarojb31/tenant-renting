@@ -15,6 +15,7 @@ import { ListingsModule } from './modules/listings/listings.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { AmenitiesModule } from './modules/amenities/amenities.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     CustomersModule,
     MatchingModule,
     PaymentsModule,
+    AmenitiesModule,
     // Feature modules (added as implemented — see docs/PROGRESS.md)
   ],
   providers: [

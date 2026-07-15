@@ -60,6 +60,8 @@ export class MatchingService {
       .andWhere('p.active = true')
       // roomType: match if preference has no roomType set, or it equals listing's
       .andWhere('(p.roomType IS NULL OR p.roomType = :roomType)', { roomType: listing.roomType })
+      // bhkType: match if preference has no bhkType set, or it equals listing's
+      .andWhere('(p.bhkType IS NULL OR p.bhkType = :bhkType)', { bhkType: listing.bhkType ?? null })
       // budget: each bound only applied when it's set
       .andWhere('(p.budgetMin IS NULL OR CAST(p.budgetMin AS numeric) <= :rent)', { rent: rentAmount })
       .andWhere('(p.budgetMax IS NULL OR CAST(p.budgetMax AS numeric) >= :rent)', { rent: rentAmount });

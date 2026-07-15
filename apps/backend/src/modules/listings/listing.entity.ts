@@ -1,7 +1,9 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, ManyToMany, JoinTable } from 'typeorm';
 import { TenantScopedEntity } from '@database/base/tenant-scoped.entity';
 import { RoomType } from '@common/enums/room-type.enum';
+import { BhkType } from '@common/enums/bhk-type.enum';
 import { ListingStatus } from '@common/enums/listing-status.enum';
+import { Amenity } from '@modules/amenities/amenity.entity';
 
 @Entity('listings')
 export class Listing extends TenantScopedEntity {
@@ -13,6 +15,12 @@ export class Listing extends TenantScopedEntity {
 
   @Column({ name: 'room_type', type: 'enum', enum: RoomType })
   roomType!: RoomType;
+
+  @Column({ name: 'bhk_type', type: 'enum', enum: BhkType, nullable: true })
+  bhkType!: BhkType | null;
+
+  @Column({ name: 'number_of_rooms', type: 'int', nullable: true })
+  numberOfRooms!: number | null;
 
   @Column({ name: 'rent_amount', type: 'decimal', precision: 12, scale: 2 })
   rentAmount!: string;
@@ -43,4 +51,12 @@ export class Listing extends TenantScopedEntity {
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
   createdBy!: string | null;
+
+  @ManyToMany(() => Amenity, (a) => a.listings, { eager: false })
+  @JoinTable({
+    name: 'listing_amenities',
+    joinColumn: { name: 'listing_id' },
+    inverseJoinColumn: { name: 'amenity_id' },
+  })
+  amenities!: Amenity[];
 }

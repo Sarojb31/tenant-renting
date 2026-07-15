@@ -8,8 +8,12 @@ import {
   Min,
   Length,
   IsPositive,
+  IsInt,
+  IsArray,
+  IsUUID,
 } from 'class-validator';
 import { RoomType } from '@common/enums/room-type.enum';
+import { BhkType } from '@common/enums/bhk-type.enum';
 import { ListingStatus } from '@common/enums/listing-status.enum';
 
 export class UpdateListingDto {
@@ -25,6 +29,20 @@ export class UpdateListingDto {
   @IsEnum(RoomType)
   @IsOptional()
   roomType?: RoomType;
+
+  @IsEnum(BhkType)
+  @IsOptional()
+  bhkType?: BhkType;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  numberOfRooms?: number;
+
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  amenityIds?: string[];
 
   @IsNumber()
   @IsPositive()
