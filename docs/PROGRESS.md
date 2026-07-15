@@ -1,18 +1,18 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-15 — Session 11: Phase 2 fully complete. Latest commit `5efc071`.
+**Last updated:** 2026-07-15 — Session 12: Subscriptions integration tests complete + all commits pushed. Latest commit `3943a1a`.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Booking calendar / availability management done. Latest commit `ac31d8f` on `master`.
+**Session stopped after:** Subscriptions integration tests (17 passing). All Phase 2 commits pushed to origin/master.
 
 **Phase 2 fully complete. Next: Phase 3 (WhatsApp/AI/Facebook add-ons) or pilot deployment.**
 
 **Very next task:**
-1. Integration tests for subscriptions module (plan limits, credit deduction via real DB)
-2. Push all commits to remote (`git push origin master`)
+1. ~~Integration tests for subscriptions module (plan limits, credit deduction via real DB)~~ ✅ DONE (`test/subscriptions.integration.spec.ts`, 17 tests)
+2. ~~Push all commits to remote (`git push origin master`)~~ ✅ DONE
 3. Begin Phase 3 or prepare for pilot onboarding (subdomain setup, production env)
 
 **Phase 2 items DONE this session:**
