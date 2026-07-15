@@ -3,58 +3,87 @@ import { Layout } from '../../components/Layout';
 import { StatCard } from '../../components/StatCard';
 import { StatusBadge } from '../../components/StatusBadge';
 import { fetchListings } from '../../api/listings';
-import { fetchCustomers } from '../../api/customers';
 import { fetchPayments } from '../../api/payments';
+import { fetchTenantAnalytics } from '../../api/analytics';
+import { fetchCurrentSubscription } from '../../api/subscriptions';
 
 export function DashboardPage() {
-  const { data: listingsData } = useQuery({
-    queryKey: ['listings', 'summary'],
-    queryFn: () => fetchListings({ limit: 5, status: 'published' }).then((r) => r.data),
+  const { data: analytics } = useQuery({
+    queryKey: ['analytics', 'overview'],
+    queryFn: () => fetchTenantAnalytics().then((r) => r.data),
   });
-  const { data: customersData } = useQuery({
-    queryKey: ['customers', 'summary'],
-    queryFn: () => fetchCustomers({ limit: 1 }).then((r) => r.data),
+  const { data: listingsData } = useQuery({
+    queryKey: ['listings', 'recent'],
+    queryFn: () => fetchListings({ limit: 5 }).then((r) => r.data),
   });
   const { data: paymentsData } = useQuery({
-    queryKey: ['payments', 'summary'],
+    queryKey: ['payments', 'recent'],
     queryFn: () => fetchPayments({ limit: 5 }).then((r) => r.data),
   });
-
-  const totalRevenue = (paymentsData?.data ?? [])
-    .filter((p) => p.status === 'success')
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const { data: sub } = useQuery({
+    queryKey: ['subscription', 'current'],
+    queryFn: () => fetchCurrentSubscription().then((r) => r.data),
+  });
 
   return (
     <Layout title="Dashboard">
       <div className="space-y-6">
-        {/* Stats */}
+        {/* Stats from analytics endpoint */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Active Listings"
-            value={listingsData?.total ?? '—'}
+            value={analytics?.listings.published ?? '—'}
             sub="Published & live"
             live
             accent="blue"
           />
           <StatCard
             label="Customers"
-            value={customersData?.total ?? '—'}
-            sub="Registered via OTP"
+            value={analytics?.customers.total ?? '—'}
+            sub="Registered"
             accent="green"
           />
           <StatCard
             label="Total Revenue"
-            value={totalRevenue ? `₹${totalRevenue.toLocaleString()}` : '—'}
+            value={analytics ? `₹${Number(analytics.revenue.total).toLocaleString()}` : '—'}
             sub="Confirmed payments"
             accent="green"
           />
           <StatCard
-            label="Pending Payments"
-            value={(paymentsData?.data ?? []).filter((p) => p.status === 'pending').length}
+            label="Pending Bookings"
+            value={analytics?.bookings.pending ?? '—'}
             sub="Awaiting confirmation"
             accent="amber"
           />
         </div>
+
+        {/* Subscription strip */}
+        {sub && (
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Plan</p>
+                <p className="font-semibold text-gray-800 capitalize">{sub.plan.name.replace('_', ' ')}</p>
+              </div>
+              <StatusBadge status={sub.status} />
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-lg font-bold tabular-nums text-brand-600">{sub.smsCreditsRemaining}</p>
+                <p className="text-xs text-gray-500">SMS credits left</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold tabular-nums text-gray-700">{analytics?.listings.total ?? '—'}</p>
+                <p className="text-xs text-gray-500">
+                  / {sub.plan.maxListings ?? '∞'} listings
+                </p>
+              </div>
+              <a href="/company/subscription" className="text-xs text-brand-600 font-medium hover:underline">
+                Manage plan →
+              </a>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent listings */}

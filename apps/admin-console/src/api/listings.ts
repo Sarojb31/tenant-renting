@@ -16,8 +16,9 @@ export interface Listing {
 
 export interface ListingsRes { data: Listing[]; total: number }
 
+// Admin endpoint — returns all statuses, offset-paginated
 export const fetchListings = (params?: Record<string, string | number>) =>
-  api.get<ListingsRes>('/listings', { params });
+  api.get<ListingsRes>('/listings/admin/all', { params });
 
 export const fetchListing = (id: string) => api.get<Listing>(`/listings/${id}`);
 

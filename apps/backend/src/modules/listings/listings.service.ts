@@ -106,6 +106,26 @@ export class ListingsService {
     return { data, nextCursor };
   }
 
+  // Admin-only: returns all statuses, offset-paginated, with total count
+  async findAllAdmin(params: { page?: number; limit?: number; status?: string; city?: string }): Promise<{ data: Listing[]; total: number }> {
+    const tenantId = this.ctx.getRequiredTenantId();
+    const limit = Math.min(params.limit ?? 50, 100);
+    const offset = ((params.page ?? 1) - 1) * limit;
+
+    const qb = this.repo
+      .createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .orderBy('l.createdAt', 'DESC')
+      .skip(offset)
+      .take(limit);
+
+    if (params.status) qb.andWhere('l.status = :status', { status: params.status });
+    if (params.city) qb.andWhere('l.city = :city', { city: params.city });
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total };
+  }
+
   async findOne(id: string): Promise<Listing | null> {
     const tenantId = this.ctx.getTenantId();
     if (!tenantId) return null;

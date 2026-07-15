@@ -15,6 +15,8 @@ import {
   UploadedFiles,
   UseGuards,
   UseInterceptors,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -43,6 +45,20 @@ export class ListingsController {
   @Get()
   findAll(@Query() filters: ListingFilterDto): Promise<ListingPage> {
     return this.listingsService.findAll(filters);
+  }
+
+  @ApiOperation({ summary: 'Admin: list all listings for this tenant (all statuses, offset-paginated)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...STAFF_ROLES)
+  @Get('admin/all')
+  findAllAdmin(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+    @Query('status') status?: string,
+    @Query('city') city?: string,
+  ) {
+    return this.listingsService.findAllAdmin({ page, limit, status, city });
   }
 
   @ApiOperation({ summary: 'Get a single listing (public)' })

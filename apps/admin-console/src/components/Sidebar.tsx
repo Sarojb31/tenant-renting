@@ -5,10 +5,12 @@ import { logout as logoutApi } from '../api/auth';
 interface NavItem { label: string; to: string; icon: string }
 
 const COMPANY_NAV: NavItem[] = [
-  { label: 'Dashboard',  to: '/company/dashboard', icon: '▦' },
-  { label: 'Listings',   to: '/company/listings',  icon: '🏠' },
-  { label: 'Customers',  to: '/company/customers', icon: '👥' },
-  { label: 'Payments',   to: '/company/payments',  icon: '₿' },
+  { label: 'Dashboard',    to: '/company/dashboard',    icon: '▦' },
+  { label: 'Listings',     to: '/company/listings',     icon: '🏠' },
+  { label: 'Customers',    to: '/company/customers',    icon: '👥' },
+  { label: 'Payments',     to: '/company/payments',     icon: '₿' },
+  { label: 'Analytics',    to: '/company/analytics',    icon: '📊' },
+  { label: 'Subscription', to: '/company/subscription', icon: '⭐' },
 ];
 
 const SUPER_NAV: NavItem[] = [
