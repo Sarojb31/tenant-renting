@@ -9,8 +9,11 @@ import { PaymentSuccessPage } from './pages/PaymentSuccessPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { useTenantBranding } from './hooks/useTenantBranding';
 
 function App() {
+  useTenantBranding(); // applies --color-brand CSS var from tenant settings
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />

@@ -13,6 +13,7 @@ const COMPANY_NAV: NavItem[] = [
   { label: 'Users',        to: '/company/users',         icon: '👤' },
   { label: 'SMS Templates', to: '/company/sms-templates', icon: '💬' },
   { label: 'FB Leads',      to: '/company/fb-leads',       icon: '📘' },
+  { label: 'Branding',      to: '/company/branding',        icon: '🎨' },
   { label: 'Subscription', to: '/company/subscription',  icon: '⭐' },
 ];
 
