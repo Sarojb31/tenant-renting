@@ -14,6 +14,7 @@ const COMPANY_NAV: NavItem[] = [
   { label: 'SMS Templates', to: '/company/sms-templates', icon: '💬' },
   { label: 'FB Leads',      to: '/company/fb-leads',       icon: '📘' },
   { label: 'Branding',      to: '/company/branding',        icon: '🎨' },
+  { label: 'Support',       to: '/company/support',         icon: '🎫' },
   { label: 'Subscription', to: '/company/subscription',  icon: '⭐' },
 ];
 
