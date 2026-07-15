@@ -64,4 +64,15 @@ export class SubscriptionsController {
     const tenantId = this.ctx.getRequiredTenantId();
     return this.service.cancel(tenantId);
   }
+
+  @ApiOperation({ summary: 'Mark subscription past_due — dunning trigger (Super Admin only)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @Post('mark-past-due')
+  markPastDue() {
+    const tenantId = this.ctx.getRequiredTenantId();
+    return this.service.markPastDue(tenantId);
+  }
 }

@@ -85,6 +85,14 @@ export class SubscriptionsService {
     }
   }
 
+  // Dunning: transition subscription to past_due (called when payment fails or period expires)
+  async markPastDue(tenantId: string): Promise<TenantSubscription> {
+    const sub = await this.subRepo.findOne({ where: { tenantId, status: SubscriptionStatus.ACTIVE } });
+    if (!sub) throw new NotFoundException('No active subscription found');
+    sub.status = SubscriptionStatus.PAST_DUE;
+    return this.subRepo.save(sub);
+  }
+
   // Called by MatchingService — returns false if no credits remain
   async deductSmsCredit(tenantId: string): Promise<boolean> {
     const result = await this.subRepo

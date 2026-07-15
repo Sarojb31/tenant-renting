@@ -5,6 +5,8 @@ import { CommonModule } from '../../common/common.module';
 import { Listing } from '../listings/listing.entity';
 import { Booking } from './booking.entity';
 import { Payment } from './payment.entity';
+import { TenantSubscription } from '../subscriptions/tenant-subscription.entity';
+import { SubscriptionPlan } from '../subscriptions/subscription-plan.entity';
 import { StripeAdapter } from './adapters/stripe.adapter';
 import { EsewaAdapter } from './adapters/esewa.adapter';
 import { KhaltiAdapter } from './adapters/khalti.adapter';
@@ -17,7 +19,7 @@ import { PAYMENT_PROVIDER } from './payment.provider.interface';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Booking, Payment, Listing]),
+    TypeOrmModule.forFeature([Booking, Payment, Listing, TenantSubscription, SubscriptionPlan]),
     ConfigModule,
     CommonModule,
   ],
