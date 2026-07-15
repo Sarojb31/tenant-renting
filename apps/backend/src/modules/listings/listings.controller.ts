@@ -35,7 +35,9 @@ import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@common/enums/user-role.enum';
 import { JwtPayload } from '@modules/auth/strategies/jwt.strategy';
 
-const STAFF_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF, UserRole.AGENT];
+// Agents can read but not write (Plan §4.9 RBAC)
+const READ_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF, UserRole.AGENT];
+const WRITE_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF];
 
 @ApiTags('listings')
 @Controller('listings')
@@ -51,7 +53,7 @@ export class ListingsController {
   @ApiOperation({ summary: 'Admin: list all listings for this tenant (all statuses, offset-paginated)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...READ_ROLES)
   @Get('admin/all')
   findAllAdmin(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -70,10 +72,10 @@ export class ListingsController {
     return listing;
   }
 
-  @ApiOperation({ summary: 'Create a listing (Staff/Admin only)' })
+  @ApiOperation({ summary: 'Create a listing (Staff/Admin only — not Agent)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...WRITE_ROLES)
   @Post()
   create(
     @Body() dto: CreateListingDto,
@@ -83,10 +85,10 @@ export class ListingsController {
     return this.listingsService.create(dto, user.sub);
   }
 
-  @ApiOperation({ summary: 'Update a listing (Staff/Admin only)' })
+  @ApiOperation({ summary: 'Update a listing (Staff/Admin only — not Agent)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...WRITE_ROLES)
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -95,20 +97,20 @@ export class ListingsController {
     return this.listingsService.update(id, dto);
   }
 
-  @ApiOperation({ summary: 'Archive a listing (Staff/Admin only)' })
+  @ApiOperation({ summary: 'Archive a listing (Staff/Admin only — not Agent)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...WRITE_ROLES)
   @HttpCode(HttpStatus.OK)
   @Delete(':id')
   archive(@Param('id', ParseUUIDPipe) id: string): Promise<Listing> {
     return this.listingsService.archive(id);
   }
 
-  @ApiOperation({ summary: 'Upload images to a listing (Staff/Admin only)' })
+  @ApiOperation({ summary: 'Upload images to a listing (Staff/Admin only — not Agent)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...WRITE_ROLES)
   @Post(':id/images')
   @UseInterceptors(FilesInterceptor('images', 10, { storage: memoryStorage() }))
   addImages(
@@ -118,19 +120,19 @@ export class ListingsController {
     return this.listingsService.addImages(id, files);
   }
 
-  @ApiOperation({ summary: 'Get availability info for a listing (Staff/Admin only)' })
+  @ApiOperation({ summary: 'Get availability info for a listing (all staff roles)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...READ_ROLES)
   @Get(':id/availability')
   getAvailability(@Param('id', ParseUUIDPipe) id: string): Promise<ListingAvailability> {
     return this.listingsService.getAvailability(id);
   }
 
-  @ApiOperation({ summary: 'Update availability for a listing (Staff/Admin only)' })
+  @ApiOperation({ summary: 'Update availability for a listing (Staff/Admin only — not Agent)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...WRITE_ROLES)
   @Patch(':id/availability')
   updateAvailability(
     @Param('id', ParseUUIDPipe) id: string,

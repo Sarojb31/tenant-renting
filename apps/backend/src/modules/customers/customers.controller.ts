@@ -25,7 +25,9 @@ import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@common/enums/user-role.enum';
 import { JwtPayload } from '@modules/auth/strategies/jwt.strategy';
 
-const STAFF_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF, UserRole.AGENT];
+// Agents can read customers but not create/update (Plan §4.9 RBAC)
+const READ_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF, UserRole.AGENT];
+const WRITE_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF];
 
 @ApiTags('customers')
 @ApiBearerAuth()
@@ -34,17 +36,17 @@ const STAFF_ROLES = [UserRole.COMPANY_ADMIN, UserRole.STAFF, UserRole.AGENT];
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
-  @ApiOperation({ summary: 'List all customers for this tenant (Staff only)' })
+  @ApiOperation({ summary: 'List all customers for this tenant (all staff roles)' })
   @UseGuards(RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...READ_ROLES)
   @Get()
   findAll(): Promise<Customer[]> {
     return this.customersService.findAll();
   }
 
-  @ApiOperation({ summary: 'Create customer manually (Staff only)' })
+  @ApiOperation({ summary: 'Create customer manually (Staff/Admin only — not Agent)' })
   @UseGuards(RolesGuard)
-  @Roles(...STAFF_ROLES)
+  @Roles(...WRITE_ROLES)
   @Post()
   create(@Body() dto: CreateCustomerDto): Promise<Customer> {
     return this.customersService.create(dto);
