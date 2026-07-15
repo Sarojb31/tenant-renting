@@ -1,6 +1,6 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-15 — Session 11: booking calendar / availability management done. Latest commit `ac31d8f`.
+**Last updated:** 2026-07-15 — Session 11: availability management + RBAC refinement + SMS templates done. Latest commit `a462878`.
 
 ---
 
@@ -9,11 +9,9 @@
 **Session stopped after:** Booking calendar / availability management done. Latest commit `ac31d8f` on `master`.
 
 **Very next task (Phase 2 remainder):**
-1. Role-based access control refinement: staff/agent permission granularity; user management UI (invite/disable)
-2. SMS template CRUD admin UI
-3. Subscription payment flow (payable_type='subscription' in payments table)
-4. Integration tests for subscriptions module (plan limits, credit deduction)
-5. Push all commits to remote
+1. Subscription payment flow (payable_type='subscription' in payments table, dunning/past_due)
+2. Integration tests for subscriptions module (plan limits, credit deduction via real DB)
+3. Push all commits to remote
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -176,16 +174,22 @@
 - [x] SubscriptionPage — plan picker, upgrade/downgrade, cancel flow
 - [x] DashboardPage — uses analytics endpoint + subscription strip
 - [x] GET /listings/admin/all — all-status admin endpoint (offset pagination)
-- [ ] SMS template management page
+- [x] SMS template management page
 
 ### RBAC Refinement
-- [ ] Staff vs Agent granular permissions (staff can create; agent read-only)
-- [ ] User management UI (invite/disable staff)
+- [x] Staff vs Agent granular permissions — agents READ_ROLES only on listings and customers
+- [x] User management: GET /users, POST /users/invite, PATCH /users/:id/status (company_admin only)
+- [x] Admin console UsersPage — table + invite form + enable/disable actions (5 new unit tests)
 
 ### Booking Calendar
 - [x] GET /listings/:id/availability — returns availableFrom, status, upcoming booking dates (Plan §4.3)
 - [x] PATCH /listings/:id/availability — toggle occupied/vacant, set available_from (Plan §4.3)
 - [x] Admin console AvailabilityPanel — date picker, mark occupied/vacant, booking list (6 new unit tests)
+
+### SMS Templates
+- [x] GET/POST/PATCH/DELETE /sms-templates — tenant-scoped CRUD, platform defaults read-only
+- [x] ForbiddenException on edit/delete of platform defaults (tenantId=null)
+- [x] Admin console SmsTemplatesPage — grouped by event, inline edit, live placeholder preview (7 new unit tests)
 
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)
 
@@ -224,7 +228,7 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **80 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing + 4 customer-email-login + 6 amenities + 3 matching-bhktype + 9 listings-cursor + 6 listings-availability + 12 subscriptions)
+- Backend unit tests: **92 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing + 4 customer-email-login + 6 amenities + 3 matching-bhktype + 9 listings-cursor + 6 listings-availability + 12 subscriptions + 5 users + 7 sms-templates + 11 sms-routing)
 - Backend integration tests: **96 passing** (unchanged — Phase 2 unit tests only)
 - Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)
