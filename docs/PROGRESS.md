@@ -1,14 +1,37 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-14 — Session 9 end: env files created, VITE_API_URL + VITE_TENANT_ID wired. Both frontends hit localhost:3000 directly. Latest commit `c9292c6`.
+**Last updated:** 2026-07-15 — Session 10 end: Phase §1.2 and Phase 2 backend + frontend substantially complete. Latest commit `d1eb813`.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Phase 1 fully functional end-to-end. Env wired. Latest commit `c9292c6` on `master`.
+**Session stopped after:** Plan §1.2 done; Phase 2 Core SaaS Hardening substantially done. Latest commit `d1eb813` on `master`.
 
-**Very next task:** Phase 2 — WhatsApp integration, AI-assisted matching, Facebook Page. Review Plan §9 Phase 2 first.
+**Very next task (Phase 2 remainder):**
+1. Booking calendar / availability management (Plan §4.3 listing availability_from + occupied status UI)
+2. Role-based access control refinement: staff/agent permission granularity; super-admin platform overview improvements
+3. Integration tests for subscriptions module (plan limits, credit deduction)
+4. SMS template CRUD admin UI
+5. Push all commits to remote
+
+**Phase 2 items DONE this session:**
+- Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
+- SubscriptionsModule: plan CRUD, subscribe/upgrade/cancel, assertListingLimit, deductSmsCredit
+- Plan limit enforcement in ListingsService.create (403 when max_listings reached)
+- SMS template system: SmsTemplate entity, template rendering in MatchingService, credit deduction + refund on failure
+- AnalyticsModule: GET /analytics/overview (tenant) + GET /analytics/platform (super_admin)
+- GET /listings/admin/all — admin endpoint, all statuses, offset-paginated
+- Admin console: AnalyticsPage, SubscriptionPage, updated DashboardPage (analytics + sub strip)
+- Sidebar + routes updated for Analytics + Subscription pages
+
+**Phase §1.2 items DONE this session:**
+- amenities table + listing_amenities join table + BhkType/AmenityCategory enums + migrations
+- AmenitiesModule (GET /amenities?category= public)
+- Cursor-paginated GET /listings: base64url (created_at, id) keyset
+- SearchFilters: BHK select, room count, feasibility amenity chips
+- LandingPage (/) — dark hero, amber accent, embedded search → /search
+- SearchPage → /search with useInfiniteQuery + IntersectionObserver infinite scroll
 
 **Before touching anything, verify:**
 1. `docker compose up -d postgres redis`
@@ -126,7 +149,42 @@
 - [x] Customer email+password login — migration `1752451211000-AddCustomerPasswordHash`, new `POST /auth/customer/email-login` endpoint, `CustomerEmailLoginDto`, `CustomersService.findByEmail/setPasswordHash`, constant-time verify (matches staff auth pattern). 4 new backend unit tests.
 - [x] LoginPage (customer-web) tab switcher — Phone/OTP tab + Email tab side-by-side. Zod-validated email+password form. 18 Vitest tests (was 14). `verifyOtp` response now returns `customer` object (bug fix).
 - [x] Auth store `Customer` interface updated: `phone` and `email` both optional (either auth flow works).
-- [ ] Billing / analytics views — deferred to Phase 2 (no billing data model yet).
+- [x] Billing / analytics views — AnalyticsPage + SubscriptionPage added in Phase 2.
+
+## Phase 2 — Core SaaS Hardening (in progress)
+
+### Subscriptions & Billing
+- [x] `subscription_plans` + `tenant_subscriptions` migrations + seeded 4 plans
+- [x] SubscriptionsModule: GET /subscriptions/plans (public), GET /subscriptions/current, POST /subscriptions/subscribe, DELETE /subscriptions/cancel
+- [x] Plan limit enforcement in ListingsService.create — 403 when max_listings reached
+- [x] SMS credit deduction per send in MatchingService (atomic UPDATE, skip if exhausted, refund on failure)
+- [ ] Subscription payment flow (payable_type='subscription' in payments table)
+- [ ] Dunning / past_due state transitions
+
+### SMS Templates
+- [x] `sms_templates` migration + SmsTemplate entity (tenant-scoped + platform defaults)
+- [x] Template rendering in MatchingService (tenant template → platform default fallback)
+- [x] template_id + delivered_at columns added to sms_logs
+- [ ] Admin UI for SMS template CRUD (create/edit/preview)
+
+### Analytics
+- [x] GET /analytics/overview — tenant metrics (listings/customers/bookings/revenue/SMS credits)
+- [x] GET /analytics/platform — platform-level super_admin view
+- [x] AnalyticsPage in admin console with categorized StatCards
+
+### Admin Console Phase 2 UI
+- [x] SubscriptionPage — plan picker, upgrade/downgrade, cancel flow
+- [x] DashboardPage — uses analytics endpoint + subscription strip
+- [x] GET /listings/admin/all — all-status admin endpoint (offset pagination)
+- [ ] SMS template management page
+
+### RBAC Refinement
+- [ ] Staff vs Agent granular permissions (staff can create; agent read-only)
+- [ ] User management UI (invite/disable staff)
+
+### Booking Calendar
+- [ ] Availability calendar UI (occupied/vacant per listing)
+- [ ] `available_from` date management admin page
 
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)
 
@@ -165,8 +223,8 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **40 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing)
-- Backend integration tests: **96 passing** (4 isolation + 7 auth + 11 tenants + 11 customer-otp + 19 listings + 19 customers + 14 matching + 11 bookings/payments)
-- Frontend component tests (customer-web): **14 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×4, ProtectedRoute ×2)
+- Backend unit tests: **74 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing + 4 customer-email-login + 6 amenities + 3 matching-bhktype + 9 listings-cursor + 12 subscriptions)
+- Backend integration tests: **96 passing** (unchanged — Phase 2 unit tests only)
+- Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)
 - Cross-tenant-isolation tests passing: **4 / 4** ✓
