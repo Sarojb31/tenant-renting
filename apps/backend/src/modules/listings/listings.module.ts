@@ -9,6 +9,7 @@ import { CommonModule } from '@common/common.module';
 import { StorageModule } from '@modules/storage/storage.module';
 import { MATCHING_QUEUE } from '@modules/matching/matching.processor';
 import { AmenitiesModule } from '@modules/amenities/amenities.module';
+import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AmenitiesModule } from '@modules/amenities/amenities.module';
     CommonModule,
     StorageModule,
     AmenitiesModule,
+    SubscriptionsModule,
   ],
   providers: [ListingsService],
   controllers: [ListingsController],

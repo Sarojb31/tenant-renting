@@ -7,6 +7,7 @@ import { TenantContextService } from '@common/tenant-context.service';
 import { FILE_STORAGE_PROVIDER, FileStorageProvider } from '@modules/storage/file-storage.provider';
 import { MATCHING_QUEUE, MatchListingJobData } from '@modules/matching/matching.processor';
 import { AmenitiesService } from '@modules/amenities/amenities.service';
+import { SubscriptionsService } from '@modules/subscriptions/subscriptions.service';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
 import { ListingStatus } from '@common/enums/listing-status.enum';
@@ -44,6 +45,7 @@ export class ListingsService {
     private readonly imageRepo: Repository<ListingImage>,
     private readonly ctx: TenantContextService,
     private readonly amenitiesService: AmenitiesService,
+    private readonly subscriptions: SubscriptionsService,
     @Inject(FILE_STORAGE_PROVIDER)
     private readonly storageProvider: FileStorageProvider,
     @InjectQueue(MATCHING_QUEUE)
@@ -112,6 +114,9 @@ export class ListingsService {
 
   async create(dto: CreateListingDto, createdBy: string): Promise<Listing> {
     const tenantId = this.ctx.getRequiredTenantId();
+    const currentCount = await this.repo.count({ where: { tenantId } });
+    await this.subscriptions.assertListingLimit(tenantId, currentCount);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const listing = await this.repo.save({
       ...dto,

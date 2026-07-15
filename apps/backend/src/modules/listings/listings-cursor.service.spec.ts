@@ -40,6 +40,7 @@ function makeQb(results: Listing[]) {
 
 const ctx = { getTenantId: () => 'tenant-1', getRequiredTenantId: () => 'tenant-1' };
 const amenitiesService = { findAll: jest.fn(), findByIds: jest.fn(), upsert: jest.fn() };
+const subscriptions = { assertListingLimit: jest.fn().mockResolvedValue(undefined), assertStaffLimit: jest.fn(), deductSmsCredit: jest.fn() };
 const storage = { upload: jest.fn() };
 const queue = { add: jest.fn() } as unknown as Queue;
 
@@ -49,9 +50,10 @@ function buildService(rows: Listing[]): { svc: ListingsService; qb: ReturnType<t
     createQueryBuilder: jest.fn().mockReturnValue(qb),
     findOne: jest.fn(),
     save: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
   } as unknown as Repository<Listing>;
   const imageRepo = { find: jest.fn() } as unknown as Repository<ListingImage>;
-  const svc = new ListingsService(repo, imageRepo, ctx as never, amenitiesService as never, storage as never, queue);
+  const svc = new ListingsService(repo, imageRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue);
   return { svc, qb };
 }
 
@@ -60,7 +62,7 @@ describe('ListingsService.findAll cursor pagination', () => {
     const ctxNoTenant = { getTenantId: () => null };
     const repo = { createQueryBuilder: jest.fn() } as unknown as Repository<Listing>;
     const imageRepo = { find: jest.fn() } as unknown as Repository<ListingImage>;
-    const svc = new ListingsService(repo, imageRepo, ctxNoTenant as never, amenitiesService as never, storage as never, queue);
+    const svc = new ListingsService(repo, imageRepo, ctxNoTenant as never, amenitiesService as never, subscriptions as never, storage as never, queue);
     const result = await svc.findAll();
     expect(result).toEqual({ data: [], nextCursor: null });
     expect(repo.createQueryBuilder).not.toHaveBeenCalled();

@@ -33,8 +33,14 @@ export class SmsLog {
   @Column({ name: 'provider_message_id', type: 'varchar', nullable: true })
   providerMessageId!: string | null;
 
+  @Column({ name: 'template_id', type: 'uuid', nullable: true })
+  templateId!: string | null;
+
   @Column({ name: 'sent_at', type: 'timestamp', nullable: true })
   sentAt!: Date | null;
+
+  @Column({ name: 'delivered_at', type: 'timestamp', nullable: true })
+  deliveredAt!: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

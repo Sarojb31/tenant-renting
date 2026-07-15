@@ -22,6 +22,8 @@ function makeRepo<T extends ObjectLiteral>(overrides: Partial<Repository<T>> = {
 }
 
 const nullSms = { send: jest.fn().mockResolvedValue({ providerMessageId: 'p-1' }) };
+const nullSubs = { deductSmsCredit: jest.fn().mockResolvedValue(true) };
+const nullTemplateRepo = { findOne: jest.fn().mockResolvedValue(null) } as unknown as Repository<ObjectLiteral>;
 
 function buildListing(overrides: Partial<Listing> = {}): Listing {
   return {
@@ -37,26 +39,32 @@ function buildListing(overrides: Partial<Listing> = {}): Listing {
   } as unknown as Listing;
 }
 
+function buildSvc(overrides: {
+  listingRepo?: Repository<Listing>;
+  prefRepo?: Repository<CustomerPreference>;
+  customerRepo?: Repository<Customer>;
+  smsLogRepo?: Repository<SmsLog>;
+}) {
+  const { listingRepo, prefRepo, customerRepo, smsLogRepo } = overrides;
+  return new MatchingService(
+    listingRepo ?? makeRepo<Listing>(),
+    customerRepo ?? makeRepo<Customer>({ createQueryBuilder: jest.fn().mockReturnValue(makeQb([])) }),
+    prefRepo ?? makeRepo<CustomerPreference>(),
+    smsLogRepo ?? makeRepo<SmsLog>({ findOne: jest.fn(), save: jest.fn(), update: jest.fn() }),
+    nullTemplateRepo as never,
+    nullSubs as never,
+    nullSms as never,
+  );
+}
+
 describe('MatchingService bhkType matching', () => {
   it('includes bhkType IS NULL condition in preference query', async () => {
     const listing = buildListing();
     const qb = makeQb([]);
-    const prefRepo = makeRepo<CustomerPreference>({
-      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    const svc = buildSvc({
+      listingRepo: makeRepo<Listing>({ findOne: jest.fn().mockResolvedValue(listing) }),
+      prefRepo: makeRepo<CustomerPreference>({ createQueryBuilder: jest.fn().mockReturnValue(qb) }),
     });
-    const listingRepo = makeRepo<Listing>({
-      findOne: jest.fn().mockResolvedValue(listing),
-    });
-    const customerRepo = makeRepo<Customer>({ createQueryBuilder: jest.fn().mockReturnValue(makeQb([])) });
-    const smsLogRepo = makeRepo<SmsLog>({ findOne: jest.fn(), save: jest.fn(), update: jest.fn() });
-
-    const svc = new MatchingService(
-      listingRepo as Repository<Listing>,
-      customerRepo as Repository<Customer>,
-      prefRepo as Repository<CustomerPreference>,
-      smsLogRepo as Repository<SmsLog>,
-      nullSms as never,
-    );
 
     await svc.triggerMatchForListing('listing-1', 'tenant-1');
 
@@ -71,20 +79,10 @@ describe('MatchingService bhkType matching', () => {
   it('passes null bhkType when listing has no bhkType', async () => {
     const listing = buildListing({ bhkType: null as never });
     const qb = makeQb([]);
-    const prefRepo = makeRepo<CustomerPreference>({
-      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    const svc = buildSvc({
+      listingRepo: makeRepo<Listing>({ findOne: jest.fn().mockResolvedValue(listing) }),
+      prefRepo: makeRepo<CustomerPreference>({ createQueryBuilder: jest.fn().mockReturnValue(qb) }),
     });
-    const listingRepo = makeRepo<Listing>({ findOne: jest.fn().mockResolvedValue(listing) });
-    const customerRepo = makeRepo<Customer>({ createQueryBuilder: jest.fn().mockReturnValue(makeQb([])) });
-    const smsLogRepo = makeRepo<SmsLog>({ findOne: jest.fn(), save: jest.fn(), update: jest.fn() });
-
-    const svc = new MatchingService(
-      listingRepo as Repository<Listing>,
-      customerRepo as Repository<Customer>,
-      prefRepo as Repository<CustomerPreference>,
-      smsLogRepo as Repository<SmsLog>,
-      nullSms as never,
-    );
 
     await svc.triggerMatchForListing('listing-1', 'tenant-1');
 
@@ -95,18 +93,11 @@ describe('MatchingService bhkType matching', () => {
   });
 
   it('skips triggerMatch when listing not found', async () => {
-    const listingRepo = makeRepo<Listing>({ findOne: jest.fn().mockResolvedValue(null) });
     const prefRepo = makeRepo<CustomerPreference>({ createQueryBuilder: jest.fn() });
-    const customerRepo = makeRepo<Customer>({ createQueryBuilder: jest.fn() });
-    const smsLogRepo = makeRepo<SmsLog>({ findOne: jest.fn(), save: jest.fn(), update: jest.fn() });
-
-    const svc = new MatchingService(
-      listingRepo as Repository<Listing>,
-      customerRepo as Repository<Customer>,
-      prefRepo as Repository<CustomerPreference>,
-      smsLogRepo as Repository<SmsLog>,
-      nullSms as never,
-    );
+    const svc = buildSvc({
+      listingRepo: makeRepo<Listing>({ findOne: jest.fn().mockResolvedValue(null) }),
+      prefRepo,
+    });
 
     await svc.triggerMatchForListing('missing', 'tenant-1');
     expect(prefRepo.createQueryBuilder).not.toHaveBeenCalled();
