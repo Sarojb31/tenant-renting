@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { LandingPage } from './pages/LandingPage';
 import { SearchPage } from './pages/SearchPage';
 import { ListingDetailPage } from './pages/ListingDetailPage';
 import { LoginPage } from './pages/LoginPage';
@@ -11,7 +12,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<SearchPage />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/search" element={<SearchPage />} />
       <Route path="/listings/:id" element={<ListingDetailPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route

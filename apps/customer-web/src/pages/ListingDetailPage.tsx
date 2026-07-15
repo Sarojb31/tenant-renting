@@ -82,8 +82,8 @@ export function ListingDetailPage() {
             <h2 className="font-semibold text-gray-700 mb-2">Amenities</h2>
             <div className="flex flex-wrap gap-2">
               {listing.amenities.map((a) => (
-                <span key={a} className="bg-brand-50 text-brand-700 text-xs px-2 py-1 rounded-full">
-                  {a}
+                <span key={a.id} className="bg-brand-50 text-brand-700 text-xs px-2 py-1 rounded-full">
+                  {a.name}
                 </span>
               ))}
             </div>
