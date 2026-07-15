@@ -1,6 +1,14 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonModule } from '@common/common.module';
+import { Review } from './review.entity';
+import { ReviewsService } from './reviews.service';
+import { ReviewsController } from './reviews.controller';
 
-// Implements: Plan Section 12 (reviews table)
-// Build order: Phase 3
-@Module({})
+@Module({
+  imports: [TypeOrmModule.forFeature([Review]), CommonModule],
+  providers: [ReviewsService],
+  controllers: [ReviewsController],
+  exports: [ReviewsService],
+})
 export class ReviewsModule {}

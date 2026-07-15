@@ -19,6 +19,7 @@ import { AmenitiesModule } from './modules/amenities/amenities.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FacebookIntegrationModule } from './modules/facebook-integration/facebook-integration.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { FacebookIntegrationModule } from './modules/facebook-integration/facebo
     SubscriptionsModule,
     AnalyticsModule,
     FacebookIntegrationModule,
+    ReviewsModule,
     // Feature modules (added as implemented — see docs/PROGRESS.md)
   ],
   providers: [
