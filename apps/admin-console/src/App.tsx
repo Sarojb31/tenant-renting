@@ -7,6 +7,7 @@ import { PaymentsPage } from './pages/company/PaymentsPage';
 import { AnalyticsPage } from './pages/company/AnalyticsPage';
 import { SubscriptionPage } from './pages/company/SubscriptionPage';
 import { UsersPage } from './pages/company/UsersPage';
+import { SmsTemplatesPage } from './pages/company/SmsTemplatesPage';
 import { SuperDashboardPage } from './pages/super-admin/SuperDashboardPage';
 import { TenantsPage } from './pages/super-admin/TenantsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -23,7 +24,8 @@ function App() {
       <Route path="/company/payments"     element={<ProtectedRoute><PaymentsPage /></ProtectedRoute>} />
       <Route path="/company/analytics"    element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
       <Route path="/company/subscription" element={<ProtectedRoute><SubscriptionPage /></ProtectedRoute>} />
-      <Route path="/company/users"        element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+      <Route path="/company/users"         element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+      <Route path="/company/sms-templates" element={<ProtectedRoute><SmsTemplatesPage /></ProtectedRoute>} />
 
       {/* Super Admin */}
       <Route path="/super/dashboard" element={<ProtectedRoute requireRole="super_admin"><SuperDashboardPage /></ProtectedRoute>} />

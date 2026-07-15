@@ -10,8 +10,9 @@ const COMPANY_NAV: NavItem[] = [
   { label: 'Customers',    to: '/company/customers',    icon: '👥' },
   { label: 'Payments',     to: '/company/payments',     icon: '₿' },
   { label: 'Analytics',    to: '/company/analytics',    icon: '📊' },
-  { label: 'Users',        to: '/company/users',        icon: '👤' },
-  { label: 'Subscription', to: '/company/subscription', icon: '⭐' },
+  { label: 'Users',        to: '/company/users',         icon: '👤' },
+  { label: 'SMS Templates', to: '/company/sms-templates', icon: '💬' },
+  { label: 'Subscription', to: '/company/subscription',  icon: '⭐' },
 ];
 
 const SUPER_NAV: NavItem[] = [
