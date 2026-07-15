@@ -1,18 +1,18 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-15 — Session 10 end: Phase §1.2 and Phase 2 backend + frontend substantially complete. Latest commit `d1eb813`.
+**Last updated:** 2026-07-15 — Session 11: booking calendar / availability management done. Latest commit `ac31d8f`.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Plan §1.2 done; Phase 2 Core SaaS Hardening substantially done. Latest commit `d1eb813` on `master`.
+**Session stopped after:** Booking calendar / availability management done. Latest commit `ac31d8f` on `master`.
 
 **Very next task (Phase 2 remainder):**
-1. Booking calendar / availability management (Plan §4.3 listing availability_from + occupied status UI)
-2. Role-based access control refinement: staff/agent permission granularity; super-admin platform overview improvements
-3. Integration tests for subscriptions module (plan limits, credit deduction)
-4. SMS template CRUD admin UI
+1. Role-based access control refinement: staff/agent permission granularity; user management UI (invite/disable)
+2. SMS template CRUD admin UI
+3. Subscription payment flow (payable_type='subscription' in payments table)
+4. Integration tests for subscriptions module (plan limits, credit deduction)
 5. Push all commits to remote
 
 **Phase 2 items DONE this session:**
@@ -183,8 +183,9 @@
 - [ ] User management UI (invite/disable staff)
 
 ### Booking Calendar
-- [ ] Availability calendar UI (occupied/vacant per listing)
-- [ ] `available_from` date management admin page
+- [x] GET /listings/:id/availability — returns availableFrom, status, upcoming booking dates (Plan §4.3)
+- [x] PATCH /listings/:id/availability — toggle occupied/vacant, set available_from (Plan §4.3)
+- [x] Admin console AvailabilityPanel — date picker, mark occupied/vacant, booking list (6 new unit tests)
 
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)
 
@@ -223,7 +224,7 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **74 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing + 4 customer-email-login + 6 amenities + 3 matching-bhktype + 9 listings-cursor + 12 subscriptions)
+- Backend unit tests: **80 passing** (8 routing + 5 Sparrow + 5 Twilio + 7 Stripe + 5 eSewa + 5 Khalti + 4 payment-routing + 4 customer-email-login + 6 amenities + 3 matching-bhktype + 9 listings-cursor + 6 listings-availability + 12 subscriptions)
 - Backend integration tests: **96 passing** (unchanged — Phase 2 unit tests only)
 - Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)
