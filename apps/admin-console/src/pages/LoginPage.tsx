@@ -16,7 +16,7 @@ export function LoginPage() {
   const { login: storeLogin } = useAuthStore();
   const nav = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '';
   const [error, setError] = useState('');
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<Form>({
@@ -29,7 +29,9 @@ export function LoginPage() {
       const res = await login(email, password);
       storeLogin(res.data.accessToken, res.data.user);
       const dest = res.data.user.role === 'super_admin' ? '/super/dashboard' : '/company/dashboard';
-      nav(from === '/login' ? dest : from, { replace: true });
+      // Use role-based dest when user visited /login directly (from is '/' or missing)
+      const goTo = !from || from === '/' ? dest : from;
+      nav(goTo, { replace: true });
     } catch {
       setError('Invalid email or password.');
     }
