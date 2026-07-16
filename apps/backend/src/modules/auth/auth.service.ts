@@ -40,7 +40,10 @@ export class AuthService {
 
   // ─── Staff / admin ────────────────────────────────────────────────────────
 
-  async login(dto: LoginDto, res: Response): Promise<{ accessToken: string }> {
+  async login(
+    dto: LoginDto,
+    res: Response,
+  ): Promise<{ accessToken: string; user: { id: string; email: string; name?: string | null; role: string; tenantId?: string | null } }> {
     const user = await this.usersService.findByEmail(dto.email);
 
     // Constant-time comparison — same error for unknown email and wrong password
@@ -67,7 +70,10 @@ export class AuthService {
     );
     await this.usersService.updateLastLogin(user.id);
 
-    return { accessToken };
+    return {
+      accessToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, tenantId: user.tenantId },
+    };
   }
 
   // ─── Customer OTP ─────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ export class AuthController {
   login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ accessToken: string }> {
+  ) {
     return this.authService.login(dto, res);
   }
 

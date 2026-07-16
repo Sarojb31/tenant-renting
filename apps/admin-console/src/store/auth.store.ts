@@ -7,6 +7,7 @@ interface AuthState {
   user: AdminUser | null;
   login: (token: string, user: AdminUser) => void;
   logout: () => void;
+  setToken: (token: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -21,6 +22,10 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('admin_access_token');
         set({ token: null, user: null });
+      },
+      setToken: (token) => {
+        localStorage.setItem('admin_access_token', token);
+        set({ token });
       },
     }),
     { name: 'admin-auth' },
