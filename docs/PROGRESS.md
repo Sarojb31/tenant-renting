@@ -1,41 +1,36 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-16 — Session 14 complete: Plan v2.6 — Facebook Connect flow (OAuth + BYO-app) fully built.
+**Last updated:** 2026-07-16 — Session 15: fixed Facebook OAuth JWT delivery bug + TypeORM column type errors; committed pre-existing uncommitted work (paginated tenant/payment endpoints, entity column names, plan v2.6 docs).
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Working from:** Plan v2.6
+**Working from:** Plan v2.6. All Phase 3 items complete. Next: Phase 4 planning (Plan Section 9).
 
-**Plan v2.6 additions (all implemented this session):**
-- `tenant_facebook_connections` table — migration 1752451223000, TypeORM entity, `FbConnectionMethod` enum
-- `EncryptionService` (AES-256-GCM) in `src/common/` — shared via `CommonModule`
-- `FacebookConnectionService` — OAuth URL builder, OAuth callback handler (code exchange → long-lived Page token → `subscribed_apps`), BYO-app connect, disconnect, status, `resolveAppSecret(fbPageId)` for webhook branching
-- `ByoConnectDto` — validated DTO for BYO-app form
-- Webhook handler migrated: lookup `tenant_facebook_connections` by `fb_page_id` → branch on `connection_method` for HMAC secret → no more `x-tenant-id` header dependency
-- New endpoints: `GET /facebook/connect`, `GET /facebook/callback`, `POST /facebook/connect/byo-app`, `GET /facebook/status`, `DELETE /facebook/connect`
-- Admin console `FbLeadsPage`: real connect flow UI (OAuth button, BYO-app form with webhook setup guide, connected-state view with disconnect, OAuth callback flash messages)
-- `api/facebook.ts`: `getFbStatus`, `connectByoApp`, `disconnectFacebook`, `getFbOAuthUrl`
-- 11 new unit tests in `facebook-connection.service.spec.ts` + 2 EncryptionService round-trip tests
+**Facebook OAuth is code-complete but not end-to-end testable yet:**
+- `GET /facebook/connect` returns `{ url }` JSON (no `@Redirect`) — frontend calls via Axios (with JWT), then `window.location.href = data.url`. This fixes the 401 that was breaking the flow.
+- Actual OAuth will fail until real Meta App credentials are in `apps/backend/.env`:
+  ```
+  FB_APP_ID=<from Meta for Developers → Your App → Settings → Basic>
+  FB_APP_SECRET=<same location>
+  FB_WEBHOOK_VERIFY_TOKEN=<any random string>
+  ```
+  These were not in `.env` at session end. Backend defaults to empty string → Meta returns "Invalid App ID."
+- Also required in Meta App dashboard: **Valid OAuth Redirect URI** = `http://localhost:3000/facebook/callback` (must match `APP_BASE_URL` in `.env` exactly).
+- Once credentials are in place, the full OAuth flow should work without code changes.
 
-**Phase 3 status — COMPLETE (deviation corrected):**
-- [x] Facebook Page distribution (Plan §4.12) — webhook, leads CRM, share modal
-- [x] Facebook multi-tenant connect flow (Plan §4.12 / §26.2 / §26.3) — `tenant_facebook_connections` migration, OAuth + BYO-app connect, webhook lookup-before-verify, admin console connect UI
-- [x] Reviews & ratings — `reviews` table, `POST /reviews`, `GET /reviews/listing/:id`, customer-web star UI
-- [x] Favorites / saved listings — `customer_favorites` table, heart toggle on SearchPage, FavoritesPage
-- [x] Custom branding per tenant — `GET /tenant-settings/branding` (public), BrandingPage, useTenantBranding hook, CSS `--color-brand`
-- [x] Support ticketing system — `support_tickets` table, SupportModule, SupportPage accordion admin UI
-- [x] Bulk listing upload via CSV — `POST /listings/bulk-upload` (FileInterceptor), inline CSV parser, admin console Upload CSV button + result card + sample CSV download
-- [x] Property owner self-service submission (§1.3) — `POST /listings/owner-submission`, migration 1752451222000, SubmissionSource enum, SMS enum extended, admin source filter + Source column
+**All tests green at session end:**
+- Backend: 141 passing, 23 suites
+- Admin console: 21 passing, 4 suites
+- Git: clean master branch, 5 commits ahead of origin
 
-**§1.4 admin create forms (Plan v2.5 clarification):**
-- [x] ListingsPage: "Create Listing" inline form → calls `POST /listings`
-- [x] CustomersPage: "Create Customer" inline form → calls `POST /customers`
-
-**Backend unit tests: 141 passing, 23 suites, all green.**
-
-**Very next task:** Phase 4 planning or pilot onboarding prep — see Plan Section 9. All Phase 3 items and Plan v2.5/v2.6 items are complete.
+**Pre-existing uncommitted work flushed this session** (was on disk but not committed — found during end-of-session sweep):
+- `GET /tenants` paginated list (super_admin only)
+- `GET /payments` paginated list (super_admin sees all, company_admin scoped)
+- `booking.entity` + `payment.entity`: explicit `name:` on all `@Column` decorators (same TypeORM "Data type Object" fix as `fbAppId`)
+- `package.json` `migration:fresh` convenience script
+- Plan v2.6 doc updates + `PLAN_UPDATE_PROMPT.md` + `docs/Claude.md` Section 10
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -259,6 +254,8 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 - 2026-07-16 — Plan v2.5: §1.4 clarified that admin console Listings + Customers pages must include Create forms (not just tables). Backend already supports POST /listings and POST /customers — frontend-only gap. Adding this session. OPEN → resolving now.
 - 2026-07-16 — Plan v2.5 review: §1.3 Property Owner Self-Service Submission was listed in Phase 3 roadmap (Section 9) but was never tracked in PROGRESS.md or built. Phase 3 marked complete prematurely — corrected above. Building this session. OPEN → resolving now.
 - 2026-07-16 — Facebook multi-tenant architecture (§4.12) — RESOLVED in Session 14 (Plan v2.6). `tenant_facebook_connections` table now exists, OAuth + BYO-app flows built, webhook lookup-before-verify migrated. The OPEN deviation is now fully closed. The `x-tenant-id` header approach (prior deviation) has been removed from the webhook handler.
+- 2026-07-16 — `GET /facebook/connect` originally used `@Redirect()` which caused 401 on every OAuth click (browser navigation doesn't carry `Authorization: Bearer`). Fixed in Session 15: endpoint returns `{ url }` JSON; frontend calls via Axios then navigates with `window.location.href`. RESOLVED.
+- 2026-07-16 — `FB_APP_ID` and `FB_APP_SECRET` not yet added to `apps/backend/.env`. Facebook OAuth config is correct in code (`configuration.ts` has the keys), but actual end-to-end OAuth will fail until real credentials are provided. Not a code defect — a credential provisioning step. OPEN — requires Meta App setup by operator before pilot testing.
 
 ## Test Coverage Snapshot
 
