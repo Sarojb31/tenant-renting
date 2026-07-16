@@ -171,7 +171,20 @@ function ConnectedPanel({
 
 function ConnectPanel({ onConnected }: { onConnected: () => void }) {
   const [showByo, setShowByo] = useState(false);
-  const oauthUrl = getFbOAuthUrl();
+  const [oauthError, setOauthError] = useState('');
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  async function handleOAuthClick() {
+    setOauthError('');
+    setOauthLoading(true);
+    try {
+      const { data } = await getFbOAuthUrl();
+      window.location.href = data.url;
+    } catch {
+      setOauthError('Could not start Facebook login. Try again.');
+      setOauthLoading(false);
+    }
+  }
 
   return (
     <div className="rounded-xl border border-blue-100 bg-blue-50 p-5 space-y-4">
@@ -193,13 +206,17 @@ function ConnectPanel({ onConnected }: { onConnected: () => void }) {
             Authorize via your Facebook account. Recommended — no credentials to manage.
           </p>
         </div>
-        <a
-          href={oauthUrl}
-          className="inline-flex items-center gap-2 bg-[#1877F2] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#166FE5] transition-colors"
+        {oauthError && (
+          <p className="text-red-600 text-xs">{oauthError}</p>
+        )}
+        <button
+          onClick={handleOAuthClick}
+          disabled={oauthLoading}
+          className="inline-flex items-center gap-2 bg-[#1877F2] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#166FE5] transition-colors disabled:opacity-60"
         >
           <span>f</span>
-          Continue with Facebook
-        </a>
+          {oauthLoading ? 'Redirecting…' : 'Continue with Facebook'}
+        </button>
       </div>
 
       {/* BYO-app option (secondary) */}

@@ -27,7 +27,7 @@ export class TenantFacebookConnection {
   @Column({ name: 'page_access_token', type: 'text' })
   pageAccessToken!: string;
 
-  @Column({ name: 'fb_app_id', nullable: true })
+  @Column({ name: 'fb_app_id', type: 'varchar', nullable: true })
   fbAppId!: string | null;
 
   @Column({ name: 'fb_app_secret', type: 'text', nullable: true })

@@ -92,11 +92,10 @@ export class FacebookController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.COMPANY_ADMIN)
   @Get('connect')
-  @Redirect()
-  initiateOAuth(@CurrentUser() user: CurrentUserPayload) {
+  initiateOAuth(@CurrentUser() user: CurrentUserPayload): { url: string } {
     const tenantId = this.ctx.getRequiredTenantId();
     const url = this.connectionService.buildOAuthUrl(tenantId, user.sub);
-    return { url, statusCode: 302 };
+    return { url };
   }
 
   /**

@@ -43,8 +43,6 @@ export const connectByoApp = (body: ByoConnectDto) =>
 
 export const disconnectFacebook = () => api.delete('/facebook/connect');
 
-/** Returns the URL to initiate Facebook OAuth (browser navigates there) */
-export const getFbOAuthUrl = (): string => {
-  const base = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
-  return `${base}/facebook/connect`;
-};
+/** Calls the backend (with JWT) to get the Facebook OAuth redirect URL. */
+export const getFbOAuthUrl = () =>
+  api.get<{ url: string }>('/facebook/connect');
