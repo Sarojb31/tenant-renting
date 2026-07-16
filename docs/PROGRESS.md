@@ -1,24 +1,33 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-15 — Session 12 complete: Phase 3 ALL DONE. Latest commit `d55d2f1`.
+**Last updated:** 2026-07-16 — Session 13: Plan v2.5 update — §1.4 admin create forms + §1.3 owner submission in progress.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Phase 3 complete — all 6 items done. Latest commit `d55d2f1` on `master`.
+**Session stopped after:** Plan v2.5 triggered two new work items. Session 13 in progress.
 
-**Phase 3 ALL DONE:**
+**Plan v2.5 changes:**
+- §1.4 (NEW): Admin console Create Listing + Create Customer forms — frontend only
+- §1.3 (Phase 3 drift): Property owner self-service submission — was in Phase 3 roadmap but never built
+
+**Phase 3 status — NOT fully complete (drift corrected):**
 - [x] Facebook Page distribution (Plan §4.12) — webhook, leads CRM, share modal
 - [x] Reviews & ratings — `reviews` table, `POST /reviews`, `GET /reviews/listing/:id`, customer-web star UI
 - [x] Favorites / saved listings — `customer_favorites` table, heart toggle on SearchPage, FavoritesPage
 - [x] Custom branding per tenant — `GET /tenant-settings/branding` (public), BrandingPage, useTenantBranding hook, CSS `--color-brand`
 - [x] Support ticketing system — `support_tickets` table, SupportModule, SupportPage accordion admin UI
 - [x] Bulk listing upload via CSV — `POST /listings/bulk-upload` (FileInterceptor), inline CSV parser, admin console Upload CSV button + result card + sample CSV download
+- [ ] Property owner self-service submission (§1.3) — `POST /listings/owner-submission`, migration (submission_source + owner cols), SMS enum extension, admin filter
+
+**§1.4 admin create forms (Plan v2.5 clarification):**
+- [ ] ListingsPage: "Create Listing" modal form → calls existing `POST /listings`
+- [ ] CustomersPage: "Create Customer" modal form → calls existing `POST /customers`
 
 **Backend unit tests: 124 passing** (all suites green including 6 new bulk-upload tests).
 
-**Very next task:** Phase 4 planning or pilot onboarding prep — see Plan Section 9.
+**Very next task:** §1.4 admin create forms → §1.3 owner submission.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -239,6 +248,9 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 - 2026-07-14 — Frontend work (Phase 1 Steps 7–8) should use the `frontend-design` skill. Phase 1 Step 7 (Customer PWA) built without Figma (no designs provided); used Tailwind utility classes + brand palette directly. OPEN for Step 8 if designs are provided.
 - 2026-07-14 — Customer PWA uses `handleSubmit(onSearch)` from react-hook-form which passes `(data, event)` to the handler — tests assert both args via `expect.anything()`. RESOLVED.
 - 2026-07-14 — PWA icons are SVG placeholders converted to PNG programmatically. Not production-quality; replace before pilot launch. OPEN.
+- 2026-07-16 — Plan v2.5: §1.4 clarified that admin console Listings + Customers pages must include Create forms (not just tables). Backend already supports POST /listings and POST /customers — frontend-only gap. Adding this session. OPEN → resolving now.
+- 2026-07-16 — Plan v2.5 review: §1.3 Property Owner Self-Service Submission was listed in Phase 3 roadmap (Section 9) but was never tracked in PROGRESS.md or built. Phase 3 marked complete prematurely — corrected above. Building this session. OPEN → resolving now.
+- 2026-07-16 — Facebook multi-tenant architecture (§4.12) deviation pre-dates v2.5: Plan describes per-tenant OAuth flow + `tenant_facebook_connections` table with encrypted Page tokens. Built: simpler x-tenant-id header + single FB_PAGE_ACCESS_TOKEN env var. Full multi-tenant Facebook OAuth is out of scope without Meta App Review; current implementation works for single-tenant dev/testing. OPEN — revisit when scaling to multi-tenant Facebook connections.
 
 ## Test Coverage Snapshot
 

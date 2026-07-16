@@ -11,8 +11,10 @@ import {
   updateAvailability,
   deleteListing,
   bulkUploadListings,
+  createListing,
   type Listing,
   type BulkUploadResult,
+  type CreateListingDto,
 } from '../../api/listings';
 
 const SAMPLE_CSV = [
@@ -215,7 +217,33 @@ export function ListingsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [shareListingId, setShareListingId] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateListingDto>({
+    title: '', roomType: 'single', rentAmount: 0, currency: 'NPR',
+  });
+  const [createError, setCreateError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const newListing = useMutation({
+    mutationFn: () => createListing({
+      ...createForm,
+      ...(createForm.description?.trim() === '' ? { description: undefined } : {}),
+      ...(createForm.address?.trim() === '' ? { address: undefined } : {}),
+      ...(createForm.city?.trim() === '' ? { city: undefined } : {}),
+      ...(createForm.availableFrom === '' ? { availableFrom: undefined } : {}),
+      ...(createForm.bhkType === '' ? { bhkType: undefined } : {}),
+    }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['listings'] });
+      setShowCreate(false);
+      setCreateForm({ title: '', roomType: 'single', rentAmount: 0, currency: 'NPR' });
+      setCreateError('');
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      setCreateError(Array.isArray(msg) ? msg.join(', ') : typeof msg === 'string' ? msg : 'Failed to create listing.');
+    },
+  });
 
   const uploadCsv = useMutation({
     mutationFn: (file: File) => bulkUploadListings(file).then((r) => r.data),
@@ -349,9 +377,15 @@ export function ListingsPage() {
             <button
               onClick={() => { setUploadResult(null); fileInputRef.current?.click(); }}
               disabled={uploadCsv.isPending}
-              className="bg-brand-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+              className="border border-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               {uploadCsv.isPending ? 'Uploading…' : '↑ Upload CSV'}
+            </button>
+            <button
+              onClick={() => { setShowCreate((v) => !v); setCreateError(''); }}
+              className="bg-brand-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-brand-700"
+            >
+              + New Listing
             </button>
             <input
               ref={fileInputRef}
@@ -394,11 +428,73 @@ export function ListingsPage() {
           </div>
         )}
 
+        {/* Create Listing form */}
+        {showCreate && (() => {
+          const inp = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white';
+          const lbl = (text: string, child: React.ReactNode) => (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">{text}</label>
+              {child}
+            </div>
+          );
+          const f = createForm;
+          const set = (patch: Partial<CreateListingDto>) => setCreateForm((prev) => ({ ...prev, ...patch }));
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+              <h3 className="text-sm font-semibold text-gray-700">Create Listing</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {lbl('Title *', <input value={f.title} onChange={(e) => set({ title: e.target.value })} placeholder="Cozy Studio near MoMo Hub" className={inp} />)}
+                {lbl('Room Type *',
+                  <select value={f.roomType} onChange={(e) => set({ roomType: e.target.value })} className={inp}>
+                    <option value="single">Single</option>
+                    <option value="shared">Shared</option>
+                    <option value="pg">PG</option>
+                    <option value="apartment">Apartment</option>
+                    <option value="studio">Studio</option>
+                  </select>
+                )}
+                {lbl('BHK Type',
+                  <select value={f.bhkType ?? ''} onChange={(e) => set({ bhkType: e.target.value || undefined })} className={inp}>
+                    <option value="">— none —</option>
+                    <option value="studio">Studio</option>
+                    <option value="1bhk">1 BHK</option>
+                    <option value="2bhk">2 BHK</option>
+                    <option value="3bhk">3 BHK</option>
+                    <option value="4bhk_plus">4 BHK+</option>
+                  </select>
+                )}
+                {lbl('Rooms', <input type="number" min={1} value={f.numberOfRooms ?? ''} onChange={(e) => set({ numberOfRooms: e.target.value ? parseInt(e.target.value) : undefined })} placeholder="1" className={inp} />)}
+                {lbl('Rent / mo *', <input type="number" min={1} value={f.rentAmount || ''} onChange={(e) => set({ rentAmount: parseFloat(e.target.value) || 0 })} placeholder="15000" className={inp} />)}
+                {lbl('Deposit', <input type="number" min={0} value={f.depositAmount ?? ''} onChange={(e) => set({ depositAmount: e.target.value ? parseFloat(e.target.value) : undefined })} placeholder="30000" className={inp} />)}
+                {lbl('Currency', <input value={f.currency ?? 'NPR'} onChange={(e) => set({ currency: e.target.value })} maxLength={3} placeholder="NPR" className={inp} />)}
+                {lbl('City', <input value={f.city ?? ''} onChange={(e) => set({ city: e.target.value })} placeholder="Kathmandu" className={inp} />)}
+                {lbl('Address', <input value={f.address ?? ''} onChange={(e) => set({ address: e.target.value })} placeholder="Main St 12" className={inp} />)}
+                {lbl('Available From', <input type="date" value={f.availableFrom ?? ''} onChange={(e) => set({ availableFrom: e.target.value || undefined })} className={inp} />)}
+              </div>
+              {lbl('Description',
+                <textarea value={f.description ?? ''} onChange={(e) => set({ description: e.target.value })} rows={3} placeholder="Describe the property…" maxLength={2000}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+              )}
+              {createError && <p className="text-xs text-red-600">{createError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => newListing.mutate()}
+                  disabled={newListing.isPending || !f.title.trim() || !f.rentAmount}
+                  className="bg-brand-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {newListing.isPending ? 'Creating…' : 'Create Listing'}
+                </button>
+                <button onClick={() => { setShowCreate(false); setCreateError(''); }} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
+              </div>
+            </div>
+          );
+        })()}
+
         <DataTable
           data={listings}
           columns={columns}
           isLoading={isLoading}
-          emptyMessage="No listings found. Create listings via the API."
+          emptyMessage="No listings found. Create one above or upload via CSV."
         />
 
         {expandedId && (() => {

@@ -16,3 +16,13 @@ export const fetchCustomers = (params?: Record<string, string | number>) =>
   api.get<CustomersRes>('/customers', { params });
 
 export const fetchCustomer = (id: string) => api.get<Customer>(`/customers/${id}`);
+
+export interface CreateCustomerDto {
+  phone: string;
+  name?: string;
+  email?: string;
+  smsOptIn?: boolean;
+}
+
+export const createCustomer = (body: CreateCustomerDto) =>
+  api.post<Customer>('/customers', body);

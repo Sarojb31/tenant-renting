@@ -48,6 +48,23 @@ export const updateAvailability = (id: string, body: { availableFrom?: string; s
 
 export const deleteListing = (id: string) => api.delete(`/listings/${id}`);
 
+export interface CreateListingDto {
+  title: string;
+  roomType: string;
+  rentAmount: number;
+  description?: string;
+  bhkType?: string;
+  numberOfRooms?: number;
+  depositAmount?: number;
+  currency?: string;
+  address?: string;
+  city?: string;
+  availableFrom?: string;
+}
+
+export const createListing = (body: CreateListingDto) =>
+  api.post<Listing>('/listings', body);
+
 export interface BulkUploadResult { created: number; failed: number; errors: string[] }
 
 export const bulkUploadListings = (file: File) => {
