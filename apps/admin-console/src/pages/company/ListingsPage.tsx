@@ -214,6 +214,7 @@ export function ListingsPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [shareListingId, setShareListingId] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null);
@@ -254,10 +255,11 @@ export function ListingsPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['listings', { statusFilter, search }],
+    queryKey: ['listings', { statusFilter, search, sourceFilter }],
     queryFn: () => fetchListings({
       ...(statusFilter && { status: statusFilter }),
       ...(search && { city: search }),
+      ...(sourceFilter && { submissionSource: sourceFilter }),
     }).then((r) => r.data),
   });
 
@@ -299,6 +301,21 @@ export function ListingsPage() {
     col.accessor('status', {
       header: 'Status',
       cell: (i) => <StatusBadge status={i.getValue()} />,
+    }),
+    col.accessor('submissionSource', {
+      header: 'Source',
+      cell: (i) => {
+        const src = i.getValue();
+        if (src === 'owner_submitted') {
+          const row = i.row.original;
+          return (
+            <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5" title={row.ownerPhone ?? ''}>
+              Owner
+            </span>
+          );
+        }
+        return <span className="text-xs text-gray-400">Staff</span>;
+      },
     }),
     col.display({
       id: 'actions',
@@ -361,10 +378,20 @@ export function ListingsPage() {
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
           >
             <option value="">All statuses</option>
+            <option value="pending_review">Pending Review</option>
             <option value="published">Published</option>
             <option value="occupied">Occupied</option>
             <option value="draft">Draft</option>
             <option value="archived">Archived</option>
+          </select>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+          >
+            <option value="">All sources</option>
+            <option value="staff_created">Staff created</option>
+            <option value="owner_submitted">Owner submitted</option>
           </select>
 
           <div className="ml-auto flex items-center gap-2">

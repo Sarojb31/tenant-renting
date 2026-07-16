@@ -55,7 +55,8 @@ function buildService(rows: Listing[]): { svc: ListingsService; qb: ReturnType<t
   } as unknown as Repository<Listing>;
   const imageRepo = { find: jest.fn() } as unknown as Repository<ListingImage>;
   const bookingRepo = { find: jest.fn().mockResolvedValue([]) } as unknown as Repository<Booking>;
-  const svc = new ListingsService(repo, imageRepo, bookingRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue);
+  const nullSms = { send: jest.fn() };
+  const svc = new ListingsService(repo, imageRepo, bookingRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue, nullSms as never);
   return { svc, qb };
 }
 
@@ -65,7 +66,8 @@ describe('ListingsService.findAll cursor pagination', () => {
     const repo = { createQueryBuilder: jest.fn() } as unknown as Repository<Listing>;
     const imageRepo = { find: jest.fn() } as unknown as Repository<ListingImage>;
     const bookingRepo = { find: jest.fn() } as unknown as Repository<Booking>;
-    const svc = new ListingsService(repo, imageRepo, bookingRepo, ctxNoTenant as never, amenitiesService as never, subscriptions as never, storage as never, queue);
+    const nullSms2 = { send: jest.fn() };
+    const svc = new ListingsService(repo, imageRepo, bookingRepo, ctxNoTenant as never, amenitiesService as never, subscriptions as never, storage as never, queue, nullSms2 as never);
     const result = await svc.findAll();
     expect(result).toEqual({ data: [], nextCursor: null });
     expect(repo.createQueryBuilder).not.toHaveBeenCalled();

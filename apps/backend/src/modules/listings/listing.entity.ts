@@ -3,6 +3,7 @@ import { TenantScopedEntity } from '@database/base/tenant-scoped.entity';
 import { RoomType } from '@common/enums/room-type.enum';
 import { BhkType } from '@common/enums/bhk-type.enum';
 import { ListingStatus } from '@common/enums/listing-status.enum';
+import { SubmissionSource } from '@common/enums/submission-source.enum';
 import { Amenity } from '@modules/amenities/amenity.entity';
 
 @Entity('listings')
@@ -51,6 +52,23 @@ export class Listing extends TenantScopedEntity {
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
   createdBy!: string | null;
+
+  @Column({
+    name: 'submission_source',
+    type: 'enum',
+    enum: SubmissionSource,
+    default: SubmissionSource.STAFF_CREATED,
+  })
+  submissionSource!: SubmissionSource;
+
+  @Column({ name: 'owner_name', type: 'varchar', nullable: true })
+  ownerName!: string | null;
+
+  @Column({ name: 'owner_phone', type: 'varchar', nullable: true })
+  ownerPhone!: string | null;
+
+  @Column({ name: 'owner_email', type: 'varchar', nullable: true })
+  ownerEmail!: string | null;
 
   @ManyToMany(() => Amenity, (a) => a.listings, { eager: false })
   @JoinTable({

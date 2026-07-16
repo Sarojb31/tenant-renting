@@ -10,6 +10,9 @@ export interface Listing {
   city: string;
   address?: string;
   status: 'draft' | 'published' | 'occupied' | 'archived' | 'pending_review';
+  submissionSource?: 'staff_created' | 'owner_submitted';
+  ownerName?: string | null;
+  ownerPhone?: string | null;
   availableFrom?: string | null;
   amenities?: string[];
   createdAt: string;

@@ -54,7 +54,8 @@ function buildSvc(
   const bookingRepo = {
     find: jest.fn().mockResolvedValue(bookings),
   } as unknown as Repository<Booking>;
-  return new ListingsService(repo, imageRepo, bookingRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue);
+  const nullSms = { send: jest.fn() };
+  return new ListingsService(repo, imageRepo, bookingRepo, ctx as never, amenitiesService as never, subscriptions as never, storage as never, queue, nullSms as never);
 }
 
 describe('ListingsService.getAvailability', () => {

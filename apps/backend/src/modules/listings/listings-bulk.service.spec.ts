@@ -36,6 +36,7 @@ function buildService() {
   const imageRepo = makeRepo<ListingImage>();
   const bookingRepo = makeRepo<Booking>();
 
+  const nullSms = { send: jest.fn() };
   const svc = new ListingsService(
     repo as unknown as Repository<Listing>,
     imageRepo as unknown as Repository<ListingImage>,
@@ -45,6 +46,7 @@ function buildService() {
     subscriptions as any,
     storage as any,
     queue,
+    nullSms as any,
   );
 
   return { svc, repo };

@@ -6,15 +6,18 @@ import { Repository } from 'typeorm';
 import { TenantContextService } from '@common/tenant-context.service';
 import { FILE_STORAGE_PROVIDER, FileStorageProvider } from '@modules/storage/file-storage.provider';
 import { MATCHING_QUEUE, MatchListingJobData } from '@modules/matching/matching.processor';
+import { SMS_PROVIDER, SmsProvider } from '@modules/sms/sms.provider.interface';
 import { AmenitiesService } from '@modules/amenities/amenities.service';
 import { SubscriptionsService } from '@modules/subscriptions/subscriptions.service';
 import { Booking } from '@modules/payments/booking.entity';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
 import { ListingStatus } from '@common/enums/listing-status.enum';
+import { SubmissionSource } from '@common/enums/submission-source.enum';
 import { RoomType } from '@common/enums/room-type.enum';
 import { BhkType } from '@common/enums/bhk-type.enum';
 import { CreateListingDto } from './dto/create-listing.dto';
+import { OwnerSubmissionDto } from './dto/owner-submission.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { ListingFilterDto } from './dto/listing-filter.dto';
@@ -89,6 +92,8 @@ export class ListingsService {
     private readonly storageProvider: FileStorageProvider,
     @InjectQueue(MATCHING_QUEUE)
     private readonly matchingQueue: Queue<MatchListingJobData>,
+    @Inject(SMS_PROVIDER)
+    private readonly smsProvider: SmsProvider,
   ) {}
 
   // Public search — cursor-paginated, published only (Plan §4.3, §14.1)
@@ -146,7 +151,7 @@ export class ListingsService {
   }
 
   // Admin-only: returns all statuses, offset-paginated, with total count
-  async findAllAdmin(params: { page?: number; limit?: number; status?: string; city?: string }): Promise<{ data: Listing[]; total: number }> {
+  async findAllAdmin(params: { page?: number; limit?: number; status?: string; city?: string; submissionSource?: string }): Promise<{ data: Listing[]; total: number }> {
     const tenantId = this.ctx.getRequiredTenantId();
     const limit = Math.min(params.limit ?? 50, 100);
     const offset = ((params.page ?? 1) - 1) * limit;
@@ -160,6 +165,7 @@ export class ListingsService {
 
     if (params.status) qb.andWhere('l.status = :status', { status: params.status });
     if (params.city) qb.andWhere('l.city = :city', { city: params.city });
+    if (params.submissionSource) qb.andWhere('l.submissionSource = :submissionSource', { submissionSource: params.submissionSource });
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total };
@@ -320,6 +326,37 @@ export class ListingsService {
     }
 
     return result;
+  }
+
+  async ownerSubmit(dto: OwnerSubmissionDto): Promise<Listing> {
+    const tenantId = this.ctx.getRequiredTenantId();
+
+    const listing = await this.repo.save({
+      tenantId,
+      title: dto.title,
+      description: dto.description ?? null,
+      roomType: dto.roomType,
+      rentAmount: dto.rentAmount as unknown as string,
+      currency: dto.currency ?? 'NPR',
+      address: dto.address ?? null,
+      city: dto.city ?? null,
+      status: ListingStatus.PENDING_REVIEW,
+      submissionSource: SubmissionSource.OWNER_SUBMITTED,
+      createdBy: null,
+      ownerName: dto.ownerName,
+      ownerPhone: dto.ownerPhone,
+      ownerEmail: dto.ownerEmail ?? null,
+    } as unknown as Listing);
+
+    // Fire SMS to owner (best-effort — don't fail submission if SMS fails)
+    try {
+      const body = `Hi ${dto.ownerName}, we received your listing "${dto.title}". Our team will review it and notify you once it goes live.`;
+      await this.smsProvider.send(dto.ownerPhone, body);
+    } catch (err) {
+      this.logger.error(`Owner submission SMS failed for ${dto.ownerPhone}: ${String(err)}`);
+    }
+
+    return listing;
   }
 
   private async dispatchMatchJob(listingId: string, tenantId: string): Promise<void> {

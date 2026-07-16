@@ -11,6 +11,7 @@ import { StorageModule } from '@modules/storage/storage.module';
 import { MATCHING_QUEUE } from '@modules/matching/matching.processor';
 import { AmenitiesModule } from '@modules/amenities/amenities.module';
 import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
+import { SmsModule } from '@modules/sms/sms.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module
     StorageModule,
     AmenitiesModule,
     SubscriptionsModule,
+    SmsModule,
   ],
   providers: [ListingsService],
   controllers: [ListingsController],

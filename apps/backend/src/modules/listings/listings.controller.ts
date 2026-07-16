@@ -28,6 +28,7 @@ import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { ListingFilterDto } from './dto/listing-filter.dto';
+import { OwnerSubmissionDto } from './dto/owner-submission.dto';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -61,8 +62,15 @@ export class ListingsController {
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
     @Query('status') status?: string,
     @Query('city') city?: string,
+    @Query('submissionSource') submissionSource?: string,
   ) {
-    return this.listingsService.findAllAdmin({ page, limit, status, city });
+    return this.listingsService.findAllAdmin({ page, limit, status, city, submissionSource });
+  }
+
+  @ApiOperation({ summary: 'Public: owner self-service property submission (Section 1.3)' })
+  @Post('owner-submission')
+  ownerSubmit(@Body() dto: OwnerSubmissionDto): Promise<{ id: string; status: string }> {
+    return this.listingsService.ownerSubmit(dto).then((l) => ({ id: l.id, status: l.status }));
   }
 
   @ApiOperation({ summary: 'Get a single listing (public)' })
