@@ -1,6 +1,6 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-16 — Session 13: Plan v2.5 update — §1.4 admin create forms + §1.3 owner submission in progress.
+**Last updated:** 2026-07-16 — Session 13 complete: Plan v2.5 — §1.4 admin create forms + §1.3 owner submission DONE. Latest commit `0f95a03`.
 
 ---
 
@@ -19,15 +19,15 @@
 - [x] Custom branding per tenant — `GET /tenant-settings/branding` (public), BrandingPage, useTenantBranding hook, CSS `--color-brand`
 - [x] Support ticketing system — `support_tickets` table, SupportModule, SupportPage accordion admin UI
 - [x] Bulk listing upload via CSV — `POST /listings/bulk-upload` (FileInterceptor), inline CSV parser, admin console Upload CSV button + result card + sample CSV download
-- [ ] Property owner self-service submission (§1.3) — `POST /listings/owner-submission`, migration (submission_source + owner cols), SMS enum extension, admin filter
+- [x] Property owner self-service submission (§1.3) — `POST /listings/owner-submission`, migration 1752451222000, SubmissionSource enum, SMS enum extended, admin source filter + Source column
 
 **§1.4 admin create forms (Plan v2.5 clarification):**
-- [ ] ListingsPage: "Create Listing" modal form → calls existing `POST /listings`
-- [ ] CustomersPage: "Create Customer" modal form → calls existing `POST /customers`
+- [x] ListingsPage: "Create Listing" inline form → calls `POST /listings`
+- [x] CustomersPage: "Create Customer" inline form → calls `POST /customers`
 
 **Backend unit tests: 124 passing** (all suites green including 6 new bulk-upload tests).
 
-**Very next task:** §1.4 admin create forms → §1.3 owner submission.
+**Very next task:** Phase 4 planning or pilot onboarding prep — see Plan Section 9. All Phase 3 items (including §1.3 owner submission) and all Plan v2.5 clarifications (§1.4) are complete.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -256,7 +256,7 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **124 passing** (95 prior + 7 facebook + 4 reviews + 7 favorites + 4 support + 6 bulk-upload + 1 misc) — 21 test suites, all green
+- Backend unit tests: **130 passing** (124 prior + 6 owner-submission) — 22 test suites, all green
 - Backend integration tests: **96 passing** (unchanged — Phase 3 unit tests only)
 - Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)
