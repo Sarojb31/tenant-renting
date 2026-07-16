@@ -1,19 +1,27 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-16 — Session 13 complete: Plan v2.5 — §1.4 admin create forms + §1.3 owner submission DONE. Latest commit `0f95a03`.
+**Last updated:** 2026-07-16 — Session 14 complete: Plan v2.6 — Facebook Connect flow (OAuth + BYO-app) fully built.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Session stopped after:** Plan v2.5 triggered two new work items. Session 13 in progress.
+**Working from:** Plan v2.6
 
-**Plan v2.5 changes:**
-- §1.4 (NEW): Admin console Create Listing + Create Customer forms — frontend only
-- §1.3 (Phase 3 drift): Property owner self-service submission — was in Phase 3 roadmap but never built
+**Plan v2.6 additions (all implemented this session):**
+- `tenant_facebook_connections` table — migration 1752451223000, TypeORM entity, `FbConnectionMethod` enum
+- `EncryptionService` (AES-256-GCM) in `src/common/` — shared via `CommonModule`
+- `FacebookConnectionService` — OAuth URL builder, OAuth callback handler (code exchange → long-lived Page token → `subscribed_apps`), BYO-app connect, disconnect, status, `resolveAppSecret(fbPageId)` for webhook branching
+- `ByoConnectDto` — validated DTO for BYO-app form
+- Webhook handler migrated: lookup `tenant_facebook_connections` by `fb_page_id` → branch on `connection_method` for HMAC secret → no more `x-tenant-id` header dependency
+- New endpoints: `GET /facebook/connect`, `GET /facebook/callback`, `POST /facebook/connect/byo-app`, `GET /facebook/status`, `DELETE /facebook/connect`
+- Admin console `FbLeadsPage`: real connect flow UI (OAuth button, BYO-app form with webhook setup guide, connected-state view with disconnect, OAuth callback flash messages)
+- `api/facebook.ts`: `getFbStatus`, `connectByoApp`, `disconnectFacebook`, `getFbOAuthUrl`
+- 11 new unit tests in `facebook-connection.service.spec.ts` + 2 EncryptionService round-trip tests
 
-**Phase 3 status — NOT fully complete (drift corrected):**
+**Phase 3 status — COMPLETE (deviation corrected):**
 - [x] Facebook Page distribution (Plan §4.12) — webhook, leads CRM, share modal
+- [x] Facebook multi-tenant connect flow (Plan §4.12 / §26.2 / §26.3) — `tenant_facebook_connections` migration, OAuth + BYO-app connect, webhook lookup-before-verify, admin console connect UI
 - [x] Reviews & ratings — `reviews` table, `POST /reviews`, `GET /reviews/listing/:id`, customer-web star UI
 - [x] Favorites / saved listings — `customer_favorites` table, heart toggle on SearchPage, FavoritesPage
 - [x] Custom branding per tenant — `GET /tenant-settings/branding` (public), BrandingPage, useTenantBranding hook, CSS `--color-brand`
@@ -25,9 +33,9 @@
 - [x] ListingsPage: "Create Listing" inline form → calls `POST /listings`
 - [x] CustomersPage: "Create Customer" inline form → calls `POST /customers`
 
-**Backend unit tests: 124 passing** (all suites green including 6 new bulk-upload tests).
+**Backend unit tests: 141 passing, 23 suites, all green.**
 
-**Very next task:** Phase 4 planning or pilot onboarding prep — see Plan Section 9. All Phase 3 items (including §1.3 owner submission) and all Plan v2.5 clarifications (§1.4) are complete.
+**Very next task:** Phase 4 planning or pilot onboarding prep — see Plan Section 9. All Phase 3 items and Plan v2.5/v2.6 items are complete.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -250,13 +258,13 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 - 2026-07-14 — PWA icons are SVG placeholders converted to PNG programmatically. Not production-quality; replace before pilot launch. OPEN.
 - 2026-07-16 — Plan v2.5: §1.4 clarified that admin console Listings + Customers pages must include Create forms (not just tables). Backend already supports POST /listings and POST /customers — frontend-only gap. Adding this session. OPEN → resolving now.
 - 2026-07-16 — Plan v2.5 review: §1.3 Property Owner Self-Service Submission was listed in Phase 3 roadmap (Section 9) but was never tracked in PROGRESS.md or built. Phase 3 marked complete prematurely — corrected above. Building this session. OPEN → resolving now.
-- 2026-07-16 — Facebook multi-tenant architecture (§4.12) deviation pre-dates v2.5: Plan describes per-tenant OAuth flow + `tenant_facebook_connections` table with encrypted Page tokens. Built: simpler x-tenant-id header + single FB_PAGE_ACCESS_TOKEN env var. Full multi-tenant Facebook OAuth is out of scope without Meta App Review; current implementation works for single-tenant dev/testing. OPEN — revisit when scaling to multi-tenant Facebook connections.
+- 2026-07-16 — Facebook multi-tenant architecture (§4.12) — RESOLVED in Session 14 (Plan v2.6). `tenant_facebook_connections` table now exists, OAuth + BYO-app flows built, webhook lookup-before-verify migrated. The OPEN deviation is now fully closed. The `x-tenant-id` header approach (prior deviation) has been removed from the webhook handler.
 
 ## Test Coverage Snapshot
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **130 passing** (124 prior + 6 owner-submission) — 22 test suites, all green
+- Backend unit tests: **141 passing** (130 prior + 11 facebook-connection) — 23 test suites, all green
 - Backend integration tests: **96 passing** (unchanged — Phase 3 unit tests only)
 - Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)

@@ -30,12 +30,16 @@ export class FacebookService {
     throw new UnauthorizedException('Invalid verify token');
   }
 
-  /** Verifies HMAC-SHA256 signature (X-Hub-Signature-256: sha256=<hex>) */
-  verifySignature(rawBody: Buffer, signature: string): void {
-    const appSecret = this.configService.get<string>('facebook.appSecret');
-    if (!appSecret) return; // skip in dev if not configured
+  /**
+   * Verifies HMAC-SHA256 signature (X-Hub-Signature-256: sha256=<hex>).
+   * Accepts an explicit appSecret (resolved per-connection) or falls back
+   * to the global FB_APP_SECRET env var for backward compatibility.
+   */
+  verifySignature(rawBody: Buffer, signature: string, appSecret?: string): void {
+    const secret = appSecret ?? this.configService.get<string>('facebook.appSecret');
+    if (!secret) return; // skip in dev if not configured
     const expected =
-      'sha256=' + createHmac('sha256', appSecret).update(rawBody).digest('hex');
+      'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
     if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
       throw new UnauthorizedException('Invalid webhook signature');
     }

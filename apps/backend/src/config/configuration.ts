@@ -57,13 +57,14 @@ export default () => ({
   },
 
   facebook: {
+    appId: process.env.FB_APP_ID ?? '',
     appSecret: process.env.FB_APP_SECRET ?? '',
     verifyToken: process.env.FB_WEBHOOK_VERIFY_TOKEN ?? '',
-    pageAccessToken: process.env.FB_PAGE_ACCESS_TOKEN ?? '',
   },
 
   app: {
     baseUrl: process.env.APP_BASE_URL ?? 'http://localhost:3000',
     customerAppBaseUrl: process.env.CUSTOMER_APP_BASE_URL ?? 'http://localhost:5173',
+    adminBaseUrl: process.env.ADMIN_APP_BASE_URL ?? 'http://localhost:5174',
   },
 });
