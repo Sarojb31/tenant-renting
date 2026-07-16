@@ -13,6 +13,7 @@ This file is the standing operating instructions for any AI coding agent (Claude
 - **Tech stack lock (Plan Section 7):** Backend is NestJS, frontend is React (Vite, PWA), database is PostgreSQL, queue/cache is Redis. Do not introduce a different framework, ORM, database engine, or major library that isn't already listed — even if it looks like a better fit for the task in front of you. Propose it and wait for approval instead of substituting it yourself.
 - **Multi-tenancy (Plan Section 17):** every tenant-scoped table and query must be filtered through the tenant-context mechanism. Any new entity that touches tenant data ships with a cross-tenant-leakage test, or it is not done.
 - **Schema changes go through migrations only** (Plan Section 12). Never hand-edit the database directly, and never generate a migration without updating the schema section of the Plan to match.
+- **Integration tests run against migrated schema, never `synchronize: true`/`dropSchema: true`** (Plan Section 20). A green integration suite is meaningless as evidence the backend/DB layer works if the test database was auto-generated from entity code instead of actually running your migrations — that setup can hide a broken migration indefinitely. If you find `synchronize` in a test config, that's a defect to fix, not a convenience to preserve.
 - **Security baseline (Plan Section 19):** no disabling DTO validation, no plaintext secrets, no webhook handler without signature verification, no bypassing auth guards "temporarily for testing."
 - **Payment/SMS adapters stay behind their interfaces (Plan Section 16).** Never call a gateway SDK directly from business logic — always go through `SmsProvider` / `PaymentProvider`.
 - **No task is complete without tests (Plan Section 20).** A new endpoint ships with an integration test; a new service/adapter ships with a unit test; a new tenant-scoped entity ships with a cross-tenant-isolation test; a new critical UI flow ships with at least a component test. "I'll add tests after" is not an acceptable state to hand back — see Section 7 for how this is enforced deterministically, not just requested.
@@ -60,6 +61,7 @@ Paste any of these back to the agent periodically — especially right after it 
 7. "Did you touch the database schema? If so, show me the migration and the corresponding update to Section 12."
 8. "Did you call any payment or SMS gateway SDK directly, or did you go through the adapter interfaces in Section 16?"
 9. "Open `docs/PROGRESS.md` — does it accurately reflect what you just did, including any tests added and any deviations?"
+10. "Run the integration suite against a database built from `migration:run`, not `synchronize`. Do the results match what's reported as passing?"
 
 If an answer doesn't hold up, stop and correct course before continuing — don't let a second task build on top of an unverified first one.
 
