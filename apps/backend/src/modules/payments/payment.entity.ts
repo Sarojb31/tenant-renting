@@ -14,19 +14,19 @@ export class Payment {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column('uuid', { nullable: true })
+  @Column({ name: 'tenant_id', type: 'uuid', nullable: true })
   tenantId!: string | null;
 
-  @Column({ type: 'varchar' })
+  @Column({ name: 'payable_type', type: 'varchar' })
   payableType!: PayableType;
 
-  @Column('uuid')
+  @Column({ name: 'payable_id', type: 'uuid' })
   payableId!: string;
 
   @Column({ type: 'varchar' })
   gateway!: PaymentGateway;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ name: 'gateway_transaction_id', type: 'varchar', nullable: true })
   gatewayTransactionId!: string | null;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
@@ -38,12 +38,12 @@ export class Payment {
   @Column({ type: 'varchar', default: PaymentStatus.PENDING })
   status!: PaymentStatus;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ name: 'raw_response', type: 'jsonb', nullable: true })
   rawResponse!: Record<string, unknown> | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
 }

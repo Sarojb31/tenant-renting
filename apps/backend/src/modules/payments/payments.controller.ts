@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +23,15 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @Get()
+  findAll(@Req() req: Request, @Query('page') page = '1', @Query('limit') limit = '10') {
+    const user = req.user as JwtPayload;
+    const tenantId = user.role === UserRole.SUPER_ADMIN ? null : user.tenantId;
+    return this.paymentsService.findAll(Number(page), Number(limit), tenantId);
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('intent')

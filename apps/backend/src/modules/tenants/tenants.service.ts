@@ -21,6 +21,15 @@ export class TenantsService {
     private readonly dataSource: DataSource,
   ) {}
 
+  async findAll(page: number, limit: number): Promise<{ data: Tenant[]; total: number; page: number; limit: number }> {
+    const [data, total] = await this.tenantRepo.findAndCount({
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, total, page, limit };
+  }
+
   findById(id: string): Promise<Tenant | null> {
     return this.tenantRepo.findOne({ where: { id } });
   }

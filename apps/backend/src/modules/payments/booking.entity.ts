@@ -12,25 +12,25 @@ export class Booking {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column('uuid')
+  @Column({ name: 'tenant_id', type: 'uuid' })
   tenantId!: string;
 
-  @Column('uuid')
+  @Column({ name: 'listing_id', type: 'uuid' })
   listingId!: string;
 
-  @Column('uuid')
+  @Column({ name: 'customer_id', type: 'uuid' })
   customerId!: string;
 
   @Column({ type: 'varchar', default: BookingStatus.PENDING })
   status!: BookingStatus;
 
-  @Column({ type: 'date', nullable: true })
+  @Column({ name: 'move_in_date', type: 'date', nullable: true })
   moveInDate!: string | null;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  @Column({ name: 'amount_due', type: 'decimal', precision: 12, scale: 2 })
   amountDue!: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  @Column({ name: 'amount_paid', type: 'decimal', precision: 12, scale: 2, default: 0 })
   amountPaid!: string;
 
   @CreateDateColumn()

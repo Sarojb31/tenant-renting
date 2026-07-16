@@ -142,7 +142,15 @@ Agent sessions don't carry memory forward — stopping for the day and picking b
 
 The verification step in `RESUME_PROMPT.md` matters more than it looks: a stale or slightly wrong `PROGRESS.md` entry is a normal, low-stakes mistake if it's caught immediately at the start of the next session. It becomes an expensive mistake if three more tasks get built on top of it first.
 
-## 10. Where to Place This File
+## 10. When the Plan Document Itself Changes Mid-Project
+
+The Plan (`docs/room-finder-saas-product-document.md`) isn't static — it gets revised after real development has already happened (new scope, or a clarification closing a gap in something already built). That's a different situation from a normal resume: it's not "pick up where you left off," it's "some of what you already built may now be incomplete, ambiguous, or need a migration."
+
+**`PLAN_UPDATE_PROMPT.md`** — run this whenever the Plan has been revised since the agent last worked from it. It forces the agent to identify what specifically changed, classify each change against what `PROGRESS.md` already marks as built (unaffected / needs rework / was ambiguous-now-clarified / entirely new), and — critically — **report back and wait for a priority decision before writing code**, rather than guessing which change to tackle first or silently rewriting already-tested work.
+
+This is not a substitute for `RESUME_PROMPT.md` — use `RESUME_PROMPT.md` at the start of every session as usual, and layer `PLAN_UPDATE_PROMPT.md` on top specifically when picking up a session after the Plan changed.
+
+## 11. Where to Place This File
 
 - **Using Claude Code:** save a copy as `CLAUDE.md` at the repository root — it loads automatically at the start of every session.
 - **Using another agent** (Cursor, Codex-style tools, etc.): most respect `AGENTS.md` at the repo root by the same convention — keep this filename there.

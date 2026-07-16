@@ -14,6 +14,7 @@
     "migration:run": "dotenv -e .env -- typeorm migration:run -d dist/src/config/typeorm.config.js",
     "migration:revert": "dotenv -e .env -- typeorm migration:revert -d dist/src/config/typeorm.config.js",
     "migration:generate": "dotenv -e .env -- typeorm migration:generate -d dist/src/config/typeorm.config.js",
+    "migration:fresh": "dotenv -e .env -- typeorm schema:drop -d dist/src/config/typeorm.config.js && dotenv -e .env -- typeorm migration:run -d dist/src/config/typeorm.config.js",
     "seed": "dotenv -e .env -- ts-node --project tsconfig.json src/database/seeds/seed.ts"
   },
   "dependencies": {

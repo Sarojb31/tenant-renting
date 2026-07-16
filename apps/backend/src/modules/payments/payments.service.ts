@@ -30,6 +30,21 @@ export class PaymentsService {
     private readonly tenantCtx: TenantContextService,
   ) {}
 
+  async findAll(
+    page: number,
+    limit: number,
+    tenantId?: string | null,
+  ): Promise<{ data: Payment[]; total: number; page: number; limit: number }> {
+    const where = tenantId ? { tenantId } : {};
+    const [data, total] = await this.paymentRepo.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, total, page, limit };
+  }
+
   async createIntent(
     customerId: string,
     dto: CreatePaymentIntentDto,

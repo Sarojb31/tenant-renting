@@ -2,7 +2,7 @@
 
 **Product Type:** Multi-tenant SaaS platform for room-finding / room-rental companies
 **Prepared for:** Product planning, architecture, and development handoff
-**Version:** 2.2 — Added cursor/offset pagination strategy (Section 14.1) alongside the search + landing page addition (Section 1.2)
+**Version:** 2.6 — Added BYO-app as a second Facebook connection method alongside OAuth (Section 4.12/26.3), for tenants unwilling to authorize a shared connector app
 
 ---
 
@@ -52,6 +52,35 @@ Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built a
 
 ---
 
+## 1.3 Scope Addition — Property Owner Self-Service Submission
+
+Section 2 always listed "Property Owner" as an optional persona; this formalizes it into an actual feature: **a property owner can request their rental be listed without needing a staff account**, closing the loop on inbound supply instead of requiring a staff member to create every listing manually.
+
+**How it works, reusing existing infrastructure rather than building a parallel system:**
+- A public, unauthenticated form (`POST /listings/owner-submission`) collects owner contact info (name, phone, email) plus basic property details, and creates a normal `listings` row with `status = pending_review` and a new `submission_source = owner_submitted` marker — this is the **same status workflow already built** for staff-created drafts, not a new pipeline.
+- Staff reviews it in the existing admin Listings view (filterable by `submission_source`), completes anything missing (exact amenities, additional photos), and either publishes it (same `PATCH /listings/:id` staff endpoint already built) or rejects it.
+- Once published, it behaves exactly like any staff-created listing — same matching engine trigger (Section 4.5), same search visibility. No changes needed there.
+- The owner is notified by SMS at submission ("we received your listing, under review") and at approval ("your listing is live") — reusing the `sms_templates` event-trigger system already built in Phase 2, with two new trigger values added (Section 12).
+
+**Deliberate design call — no OTP verification at submission time:** unlike customer accounts, owner submissions don't require phone verification before being accepted. The `pending_review` gate — a human staff member looking at every submission before it goes live — is the actual spam control, and adding OTP friction to a one-time submission form would cost real conversions for a moderation benefit staff review already provides. What *is* needed: rate limiting on the endpoint by IP (Section 19), since it's a new unauthenticated public write endpoint. Revisit OTP-gating only if spam volume through staff review becomes a real problem.
+
+**Impact on what's already built:**
+- `listings` needs a migration: `created_by` becomes nullable (owner submissions have no staff user), plus new nullable `submission_source`, `owner_name`, `owner_phone`, `owner_email` columns (Section 12) — additive, existing listing tests (staff-created path) are unaffected since `submission_source` defaults to `staff_created`.
+- `sms_templates.event_trigger` gets two new values (Section 12) — additive to the enum, doesn't touch the existing `new_match`/`booking_confirmed`/`rent_reminder` templates or their tests.
+- The admin Listings page needs a filter/tab for `submission_source`, reusing the already-built `GET /listings/admin/all` endpoint (Phase 2) with one new query param — not a new page.
+
+---
+
+## 1.4 Clarification — Admin Console "Create" Flows Are Explicitly Required
+
+The backend has always supported staff creating both listings (`POST /listings`) and customers (`POST /customers`) — this isn't new API scope. What needed spelling out explicitly: **the admin console's Listings and Customers pages must include an actual "Create New" form, not just a table with row-level actions** (publish/archive, SMS opt-in toggle, etc.). Section 4.3 and 4.4's feature bullets always implied this ("Add/edit/delete room listings," "Lead capture... manual entry"), but Section 15's page list only said "Listings (table + publish/archive actions)" and "Customers (table + SMS opt-in)" — reasonable to read as list-and-act views only, with creation happening some other way. It doesn't; the admin console is the only place staff create either one, so this needed to be unambiguous:
+
+- **Company Admin Dashboard → Listings page:** table view **plus** a "Create Listing" form (title, description, rent/deposit, room type, BHK/room count, amenities including feasibility tags, images, availability) — calls the existing `POST /listings` endpoint. Same form, reused for editing.
+- **Company Admin Dashboard → Customers page:** table view **plus** a "Create Customer" form (name, phone, email, initial preferences) — calls the existing `POST /customers` endpoint. Same RBAC as the rest of the page (staff/company_admin write access, agents read-only per the Phase 2 RBAC refinement already built).
+- No backend changes needed — this is a frontend gap to close in the admin console, using endpoints that already exist and are already tested.
+
+---
+
 ## 2. Target Users & Personas
 
 | Persona | Who they are | What they need from the platform |
@@ -60,7 +89,7 @@ Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built a
 | **Company Admin** | Owner/manager of a room-finder company (tenant) | Dashboard to manage listings, staff, customers, revenue |
 | **Staff / Agent** | Employees or field agents of the tenant company | Add/update listings, respond to leads, log site visits |
 | **End Customer** | Person looking for a room | Search rooms, filter by budget/location, get notified by SMS when a match appears, pay booking/advance online |
-| **Property Owner (optional 2-sided model)** | Owner of the room/property being listed | Submit their room, track inquiries, get paid |
+| **Property Owner** | Owner of the room/property being listed | Submit their rental via a public self-service form (no staff account needed), track submission/approval status, get notified by SMS when it goes live — see Section 1.3 |
 
 ---
 
@@ -113,6 +142,7 @@ Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built a
 
 **Features:**
 - Overview dashboard: active listings, new leads, pending payments, SMS credits remaining
+- **Pending owner submissions** as a visible queue/stat (Section 1.3) — new inbound rentals waiting on staff review, distinct from staff's own drafts
 - Staff/agent account management with role-based permissions
 - Company profile & branding settings (logo, contact info, theme color for their customer frontend)
 - Notification settings (which events trigger SMS/email)
@@ -123,6 +153,7 @@ Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built a
 
 **Features:**
 - Add/edit/delete room listings: title, description, rent, deposit, room type (single/shared/PG/apartment), amenities (WiFi, parking, attached bathroom, furnished, etc.)
+- **Owner self-service submission (Section 1.3):** a public, unauthenticated form lets property owners request their rental be listed without a staff account — creates a `listings` row at `status = pending_review` with `submission_source = owner_submitted`, reusing the same draft→pending_review→published workflow already in place for staff-created listings. Staff completes/verifies and publishes or rejects from the same admin Listings view. Owner gets an SMS on submission and on approval, via the existing SMS template system (Section 4.6).
 - **Room configuration:** BHK type (studio/1BHK/2BHK/3BHK/4BHK+) and number of rooms, captured as distinct searchable fields — not every listing fits BHK terminology (a single PG room doesn't), so both fields are optional and independently filterable (Section 12)
 - **Feasibility/proximity tagging:** extends the existing amenities model with a `category` (e.g. "feasibility") so tags like "near highway," "near public transport station," "near hospital" are managed through the same admin UI and data model as standard amenities, rather than a parallel system
 - Multi-image upload with gallery, optional 360°/virtual tour add-on
@@ -130,7 +161,7 @@ Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built a
 - Availability calendar (available from date, occupied/vacant status)
 - Categorization & tagging (near college, near hospital, bachelor-friendly, family-friendly)
 - Bulk upload via CSV for companies with large inventories
-- Listing approval workflow (draft → pending review → published) if the company wants quality control
+- Listing approval workflow (draft → pending review → published) if the company wants quality control — this same workflow is now also the review gate for owner submissions (Section 1.3), not a separate one
 - Auto-expiry/renewal reminders for stale listings
 
 ### 4.4 Customer Management (Mini-CRM)
@@ -236,6 +267,10 @@ Added after Phase 1 Steps 2 (Listings) and 7 (Customer PWA) were already built a
 - Because **Page messaging is fully supported** by the official Messenger Platform API, leads that land in the Page inbox *can* be captured via webhook and pushed into the Customer Management (CRM) module and Matching Engine automatically — giving most of the practical benefit of "Marketplace integration" through a channel that's actually API-reachable
 - Scoped as a **Phase 3 add-on**, not part of MVP
 
+**Multi-tenant architecture correction — one shared Meta App, many connected Pages:** each tenant company has its own Facebook Page, so a single global `FB_PAGE_ACCESS_TOKEN` env var only works for one tenant, not the whole platform. The correct shape: **you (the platform owner) create and own exactly one Meta App**, complete App Review on it once, and each **tenant connects their own Page to it individually** via a "Connect Facebook Page" button in their Company Admin dashboard — a standard Facebook Login for Business OAuth flow, not a manually pasted token. The resulting per-tenant Page Access Token is stored encrypted in a new `tenant_facebook_connections` table (Section 12), keyed by `tenant_id`, so the webhook receiver looks up which tenant a message belongs to by `fb_page_id`, then uses that tenant's stored token to reply — not a single shared credential. See Section 26 for the concrete setup steps and real console paths, split into what you do once versus what each tenant does themselves.
+
+**Second connection option — Bring Your Own App (BYO-app):** for tenants who won't authorize a connector app on their Page (common for larger/more risk-averse property companies), offer a second path where the tenant creates and owns their *own* Meta App, points its webhook at your shared `/facebook/webhook` endpoint themselves, and pastes their own credentials into a form in the admin console instead of going through OAuth. `tenant_facebook_connections.connection_method` records which path a given tenant used (Section 12); the webhook handler branches on it to know which App Secret to verify the inbound signature against. **This does not reduce what the platform can access on the tenant's Page — the Page Access Token grants the same capability either way — and it requires the tenant to hand over their App Secret, a more sensitive credential than OAuth ever exposes on either side.** It also means the tenant's own app needs its own App Review for Advanced Access before real customer messages arrive, same requirement as the shared app, just now their responsibility instead of yours. Offer both, default the admin console UI to OAuth, and let BYO-app be the explicit alternative for tenants who ask for it — see Section 26.3 for the tenant-facing setup steps.
+
 ---
 
 ## 5. Add-On / Premium Modules (Upsell Opportunities)
@@ -337,6 +372,7 @@ These are monetizable extras you can gate behind higher subscription tiers:
 - Support ticketing system
 - Bulk listing upload (CSV) for larger tenants
 - Facebook Page-based distribution: "Share to Facebook" listing generator + Page inbox webhook capture into CRM/Matching Engine (see Section 4.12)
+- Property owner self-service submission (Section 1.3) — public unauthenticated form, staff review queue, SMS notification on approval
 
 ### Phase 4 — Premium Add-ons & Scale (ongoing)
 - WhatsApp integration, AI-based matching, virtual tours
@@ -458,7 +494,9 @@ Field-level schema, ready to translate into migration files. All tenant-scoped t
 | latitude, longitude | decimal | used for location search; radius search is a Phase 2+ extension |
 | status | enum(draft, pending_review, published, occupied, archived) | |
 | available_from | date | |
-| created_by | uuid, FK → users | |
+| created_by | uuid, FK → users, **nullable** | *(nullability added Section 1.3)* null when `submission_source = owner_submitted` — no staff user created it |
+| submission_source | enum(staff_created, owner_submitted), default 'staff_created' | *(added Section 1.3)* |
+| owner_name, owner_phone, owner_email | varchar, nullable | *(added Section 1.3)* populated only for owner-submitted listings; contact info for an owner who has no staff/user account |
 | created_at, updated_at | timestamp | **spelled out here** (unlike other tables) because `created_at` is the keyset sort column for cursor pagination on the public search endpoint — see Section 14.1. Composite index: `(tenant_id, status, created_at DESC, id DESC)`.
 
 **listing_images** — `id, listing_id (FK), url, sort_order`
@@ -487,7 +525,7 @@ Field-level schema, ready to translate into migration files. All tenant-scoped t
 | status | enum(pending, success, failed, refunded) | |
 | raw_response | jsonb | full gateway payload for audit |
 
-**sms_templates** — `id, tenant_id (nullable=platform default), name, body_text, event_trigger enum(new_match, booking_confirmed, rent_reminder, custom)`
+**sms_templates** — `id, tenant_id (nullable=platform default), name, body_text, event_trigger enum(new_match, booking_confirmed, rent_reminder, owner_submission_received, owner_submission_approved, custom)` — *(the two `owner_submission_*` values added Section 1.3, additive to the existing enum)*
 
 **sms_logs**
 | Column | Type | Notes |
@@ -509,6 +547,8 @@ Field-level schema, ready to translate into migration files. All tenant-scoped t
 **support_tickets** — `id, tenant_id (nullable), raised_by_user_id, subject, description, status enum(open,in_progress,resolved,closed)`
 
 **audit_logs** — `id, tenant_id (nullable), actor_user_id, action, entity_type, entity_id, metadata jsonb, created_at`
+
+**tenant_facebook_connections** *(Phase 3, added alongside the Section 4.12 architecture correction)* — `tenant_id (PK/FK, one connection per tenant), connection_method enum(oauth_shared_app, byo_app), fb_page_id, fb_page_name, page_access_token (encrypted at rest), fb_app_id (nullable — only set for byo_app, stored for support/debugging reference), fb_app_secret (nullable, encrypted at rest — only set for byo_app, see Section 4.12/26.3), connected_by (FK → users), connected_at, token_expires_at (nullable — long-lived Page tokens don't expire but can be revoked)`. Looked up by `fb_page_id` when the shared webhook receives a message, so it knows which tenant's token to use for the reply — and, per `connection_method`, which App Secret to verify the inbound signature against (Section 19).
 
 **fb_page_leads** *(Phase 3)* — `id, tenant_id, fb_page_id, fb_sender_psid, message_text, matched_customer_id (nullable, FK), created_at`
 
@@ -568,6 +608,8 @@ jobs/                      (BullMQ processors: matching-dispatch, sms-dispatch, 
 | POST | /tenants | tenants | Onboard new tenant | Super Admin |
 | GET/PATCH | /tenants/:id | tenants | View/update tenant settings | Company Admin+ |
 | GET/POST | /listings | listings | List (public, cursor-paginated, filterable by city, roomType, bhkType, numberOfRooms, rent range, amenity/feasibility tag IDs — see Section 14.1) / create | Public (GET) · Staff (POST) |
+| POST | /listings/owner-submission | listings | Public, unauthenticated property-owner self-service submission — creates a listing at `pending_review` (Section 1.3) | Public, rate-limited |
+| GET | /listings/admin/all | listings | All-status admin view, offset-paginated, filterable by `submissionSource` for the owner-submission review queue (Section 1.3) | Staff |
 | GET/PATCH/DELETE | /listings/:id | listings | View/update/delete a listing | Public (GET) · Staff |
 | POST | /listings/:id/images | listings | Upload listing images | Staff |
 | GET/POST | /customers | customers | List/create customer records | Staff |
@@ -636,7 +678,7 @@ apps/
   admin-console/          (Vite + React — Company Admin + Super Admin, role-gated)
     src/
       pages/
-        company/          (Listings, Customers, Payments, Settings)
+        company/          (Listings [list + Create Listing form + publish/archive], Customers [list + Create Customer form], Payments, Settings — see Section 1.4)
         super-admin/       (Tenants, Billing, Platform Analytics)
       components/
       hooks/
@@ -725,8 +767,8 @@ export interface PaymentProvider {
 - Passwords hashed with bcrypt or argon2 — never stored plain or reversibly encrypted.
 - Tenant isolation enforced at the ORM layer (Section 17) and covered by automated cross-tenant leakage tests.
 - Every endpoint validated via `class-validator` DTOs with unknown properties stripped (whitelist mode).
-- Rate limiting (NestJS Throttler) on public endpoints — especially OTP request and search.
-- Mandatory signature verification on all inbound webhooks (payment gateways, Facebook).
+- Rate limiting (NestJS Throttler) on public endpoints — especially OTP request, search, and the owner-submission endpoint (Section 1.3), which is a new unauthenticated public **write** path and the primary spam vector to guard now that it exists.
+- Mandatory signature verification on all inbound webhooks (payment gateways, Facebook) — for Facebook specifically, verification now requires a `tenant_facebook_connections` lookup by `fb_page_id` first to resolve which App Secret to check against (Section 26.3), since BYO-app tenants bring their own. A tenant-supplied App Secret gets the same encryption-at-rest and least-privilege access treatment as any platform-owned credential — it is not lower-sensitivity just because the tenant provided it.
 - Secrets loaded from a secrets manager (AWS/GCP Secrets Manager) in staging/production — never committed `.env` files.
 - HTTPS + HSTS everywhere.
 - Audit log entries for sensitive actions: refunds, tenant suspension, role changes, plan changes.
@@ -756,7 +798,7 @@ export interface PaymentProvider {
 | `PAYMENT_STRIPE_SECRET_KEY`, `PAYMENT_STRIPE_WEBHOOK_SECRET` | International payments |
 | `PAYMENT_ESEWA_MERCHANT_ID`, `PAYMENT_ESEWA_SECRET` | Nepal payments |
 | `PAYMENT_KHALTI_SECRET_KEY` | Nepal payments |
-| `FB_PAGE_ACCESS_TOKEN`, `FB_WEBHOOK_VERIFY_TOKEN` | Phase 3 Facebook Page integration |
+| `FB_APP_ID`, `FB_APP_SECRET`, `FB_WEBHOOK_VERIFY_TOKEN` | Phase 3 Facebook Page integration — these three are global (one shared Meta App for the whole platform, Section 4.12). **`FB_PAGE_ACCESS_TOKEN` is intentionally not a global env var** — each tenant's Page token is stored encrypted per-tenant in `tenant_facebook_connections` (Section 12), obtained via OAuth, not hardcoded. |
 | `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Listing image storage |
 | `APP_BASE_URL`, `CUSTOMER_APP_BASE_URL` | Used in SMS links, webhooks, CORS |
 | `NODE_ENV` | environment flag |
@@ -845,7 +887,51 @@ It also includes a set of **human check-in queries** — questions to paste back
 
 If using Claude Code specifically, save it as `CLAUDE.md` at the repo root so it's loaded automatically every session — see `AGENTS.md` Section 7 for the exact placement rule.
 
-Two companion files complete the setup:
+Three companion files complete the setup:
 - **`docs/PROGRESS.md`** — a living checklist mirroring this Plan's Phase 1 build order and Section 22 Definition of Done. The agent updates it after every task; since agent sessions don't carry memory forward, this file is the only record of what's actually been done versus what's merely been discussed.
 - **`KICKOFF_PROMPT.md`** — the exact first message to paste into Claude Code (or a similar agent) to start the build. It sequences the agent through reading the Plan and `CLAUDE.md`, scaffolding the repo, installing the testing hooks, building the tenant-isolation foundation first, and then proceeding through Phase 1 in order — stopping for review after the initial scaffold rather than running unsupervised through the whole MVP.
 - **`PAUSE_PROMPT.md`** / **`RESUME_PROMPT.md`** — paste `PAUSE_PROMPT.md` before ending any session (forces a proper `PROGRESS.md` update and a clear "Resume Point" note) and `RESUME_PROMPT.md` at the start of the next one (forces the agent to verify that note against actual test/git state before writing new code, rather than trusting it blindly). See `AGENTS.md` Section 9.
+- **`PLAN_UPDATE_PROMPT.md`** — paste this whenever the Plan itself has been revised since the agent last worked from it (as opposed to a normal day-to-day pause/resume). It forces the agent to classify each change against what's already built, flag anything that's now ambiguous or needs rework, and report back for a priority decision before writing any code. See `AGENTS.md` Section 10.
+
+---
+
+## 26. Facebook Page Integration — Manual Setup Guide (Real Console Paths)
+
+**This is a human-only task, not something to hand to a coding agent.** It requires logging into Meta's developer console with real business credentials, and — for the one-time platform setup — submitting an App Review that a person has to fill out. The URLs below were verified directly against Meta's current developer documentation (last confirmed May 2026); if any menu label has shifted slightly by the time you do this, the documentation links are the reliable anchor, since Meta's console UI does get reorganized periodically (it moved its docs from `/docs/messenger-platform/...` to `/documentation/business-messaging/messenger-platform/...` earlier this year, so don't be surprised by that kind of shift).
+
+### 26.1 One-time platform setup (you, the SaaS owner — done once, not per-tenant)
+
+1. **Create the Meta App.** Go to **https://developers.facebook.com/apps** → "Create App." Meta now uses a "use case" model rather than the old product picker — choose the use case that adds Messenger/Page-messaging functionality (look for wording like "manage messaging" or "Messenger" among the options; the exact label has changed before and may again). Reference: **https://developers.facebook.com/docs/development/create-an-app/**
+2. **Read the Messenger Platform overview** before configuring anything: **https://developers.facebook.com/documentation/business-messaging/messenger-platform/overview**
+3. **Configure the webhook.** Inside your app's dashboard, go to **Products → Messenger → Settings**. Enter your webhook callback URL (your deployed `POST /facebook/webhook` endpoint from Section 14) and a Verify Token you choose yourself — this value becomes your `FB_WEBHOOK_VERIFY_TOKEN` env var. Full walkthrough: **https://developers.facebook.com/documentation/business-messaging/messenger-platform/webhooks**
+4. **Subscribe to the right fields.** At minimum: `messages` (incoming text/attachments) and `messaging_postbacks` (button/CTA taps, relevant if your "Share to Facebook" post uses a CTA button). Field reference: **https://developers.facebook.com/documentation/business-messaging/messenger-platform/webhooks/webhook-events**
+5. **Note your App ID and App Secret** from the app dashboard's Settings → Basic page — these become `FB_APP_ID` and `FB_APP_SECRET` (Section 21). The App Secret is what your webhook uses to verify the `X-Hub-Signature-256` header on every inbound event (Section 19) — don't skip that verification step, Meta signs every payload specifically so you can check it.
+6. **Submit for App Review to get Advanced Access on `pages_messaging` and `pages_manage_metadata`.** Without this, you can only receive messages from people who have a Developer/Tester/Admin role on your app (fine for testing with your own demo Page, not usable for real tenant customers). Access levels explained: **https://developers.facebook.com/docs/graph-api/overview/access-levels**. App-Review guidance specific to Messenger: **https://developers.facebook.com/documentation/business-messaging/messenger-platform/app-review**. Budget real calendar time for this — Meta's review isn't instant.
+7. **Local development:** Meta requires a real HTTPS endpoint with a valid (non-self-signed) TLS certificate for the webhook — plain `localhost` won't validate. Use a tunnel tool (ngrok is the common choice) to expose your local NestJS server during development, and swap in your real deployed URL once you have one.
+
+### 26.2 Per-tenant connect flow (what each Company Admin does, from inside your product — not Meta's dashboard)
+
+This is the part your team builds, using the mechanics Meta exposes:
+
+1. Company Admin clicks "Connect Facebook Page" in the admin console (Section 4.2/4.12).
+2. This kicks off a **Facebook Login for Business** OAuth flow scoped to `pages_show_list`, `pages_messaging`, and `pages_manage_metadata` — the admin picks which of their Facebook Pages to connect.
+3. Your backend exchanges the resulting user token for a **long-lived Page Access Token** for the selected Page, then stores it encrypted in `tenant_facebook_connections` (Section 12) against that tenant's `tenant_id`.
+4. Your backend calls the Page's `subscribed_apps` edge to subscribe that specific Page to your one shared app's webhook — this is a server-to-server Graph API call, not something the admin does manually in Meta's console:
+   ```
+   POST https://graph.facebook.com/<PAGE_ID>/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=<PAGE_ACCESS_TOKEN>
+   ```
+   Full reference for this call and its requirements (the token needs to come from someone with `MODERATE` access on that Page): **https://developers.facebook.com/documentation/business-messaging/messenger-platform/webhooks** (see "Subscribe to Meta Webhooks" section on that page).
+5. From this point on, a message to that tenant's Page arrives at your **one shared** `/facebook/webhook` endpoint; your handler reads `entry[].id` (the `fb_page_id`) from the payload, looks up which tenant owns that Page in `tenant_facebook_connections`, and files the lead against the correct tenant — this is the mechanism that makes one shared Meta App work safely across many tenants.
+
+**For testing/debugging any step above without writing code first:** the **Graph API Explorer** (**https://developers.facebook.com/tools/explorer**) lets you generate tokens and fire test requests (including the `subscribed_apps` call above) directly from the browser — useful for confirming the Meta side works before wiring up your OAuth flow in the admin console.
+
+### 26.3 BYO-App connect flow (tenant owns their own Meta App instead of using yours)
+
+For tenants who won't authorize a connector app on their Page, this is the alternative path (Section 4.12). The mechanics are the same as Section 26.1, just done by the tenant, scoped to their one Page, and reported back to you via a form instead of an OAuth grant:
+
+1. **The tenant creates their own Meta App**, following the same steps as Section 26.1 items 1–5, but pointed at their own business account: create the app at **https://developers.facebook.com/apps**, add Messenger/Page-messaging functionality, and configure the webhook (**Products → Messenger → Settings**) with the **same callback URL and Verify Token you use platform-wide** — your `/facebook/webhook` endpoint and your `FB_WEBHOOK_VERIFY_TOKEN` stay identical regardless of which app is calling it, since your server is the one comparing that token, not Meta.
+2. **The tenant submits their own app for App Review** to get Advanced Access on `pages_messaging` and `pages_manage_metadata` — this is genuinely their task now, not yours, and it's worth telling them upfront it isn't instant (same reference as 26.1 item 6: **https://developers.facebook.com/documentation/business-messaging/messenger-platform/app-review**).
+3. **The tenant generates a Page Access Token** for their own Page from their own app's Messenger settings, and collects their **App ID** and **App Secret** from their app dashboard's Settings → Basic page.
+4. **In your admin console**, the Company Admin picks "Connect using your own Facebook App" instead of the default OAuth button, and pastes in: Page ID, Page Access Token, App ID, App Secret. Your backend stores these in `tenant_facebook_connections` with `connection_method = byo_app`, encrypting `page_access_token` and `fb_app_secret` the same way (Section 19) — a tenant-supplied App Secret is not a lower-sensitivity credential than one of yours, treat it identically.
+5. **Signature verification now branches per request.** Your webhook handler parses the payload first to read `entry[].id` (the `fb_page_id`), looks up the matching `tenant_facebook_connections` row to get both `tenant_id` and `connection_method`, then computes the `X-Hub-Signature-256` check using `FB_APP_SECRET` (global) if `connection_method = oauth_shared_app`, or that tenant's decrypted `fb_app_secret` if `connection_method = byo_app`. The lookup-before-verify order is safe: the lookup only decides *which* secret to check against, and a forged payload still fails verification against either secret if the request didn't actually come from Meta.
+6. The tenant still has to manually subscribe their Page to their own app (Section 26.1's webhook configuration step covers this on their side) — there's no server-to-server `subscribed_apps` call for your backend to make here, since it's their app doing the subscribing, not yours.

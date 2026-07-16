@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -25,6 +26,16 @@ import { UserRole } from '@common/enums/user-role.enum';
 @Controller('tenants')
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
+
+  @ApiOperation({ summary: 'List all tenants (Super Admin only)' })
+  @Roles(UserRole.SUPER_ADMIN)
+  @Get()
+  findAll(
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
+    return this.tenantsService.findAll(Number(page), Number(limit));
+  }
 
   @ApiOperation({ summary: 'Onboard a new tenant (Super Admin only)' })
   @Roles(UserRole.SUPER_ADMIN)
