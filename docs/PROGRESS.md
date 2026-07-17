@@ -1,28 +1,32 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-17 — Session 18: listing images display, MVP checklist items — tenant onboarding UI, payment callback redirects (eSewa/Khalti browser redirect fixed), PaymentFailedPage, customers-empty bug fix.
+**Last updated:** 2026-07-17 — Session 19: bound all dev servers to 0.0.0.0 for LAN access; added LAN_IP CORS support in backend; committed and verified all tests green.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Working from:** Plan v2.9. All §1.5–§1.7 complete. Phase 3 complete. MVP Definition of Done checklist: all code items done (see checklist update below).
+**Working from:** Plan v2.9. All §1.5–§1.7 complete. Phase 3 complete. MVP Definition of Done checklist: all 9 items code-complete.
 
-**Facebook OAuth is code-complete but not end-to-end testable yet:**
-- Add to `apps/backend/.env`: `FB_APP_ID`, `FB_APP_SECRET`, `FB_WEBHOOK_VERIFY_TOKEN`
-- Register Valid OAuth Redirect URI `http://localhost:3000/facebook/callback` in Meta App dashboard.
+**LAN access is configured** — all three servers bind to `0.0.0.0`:
+- Customer PWA: `http://192.168.1.92:5173`
+- Admin console: `http://192.168.1.92:5174`
+- Backend: `http://192.168.1.92:3000`
+- `apps/backend/.env` has `LAN_IP=192.168.1.92` — update this if IP changes.
 
-**Payment gateways are code-complete but need sandbox credentials:**
-- eSewa sandbox: `ESEWA_MERCHANT_ID`, `ESEWA_SECRET` (get from rc-epay.esewa.com.np)
-- Khalti sandbox: `KHALTI_SECRET_KEY` (get from a.khalti.com)
-- Stripe sandbox: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (get from dashboard.stripe.com/test)
+**Credential provisioning still needed before end-to-end testing:**
+- eSewa sandbox secret: get from rc-epay.esewa.com.np → add `PAYMENT_ESEWA_SECRET=` to `apps/backend/.env`
+- Facebook OAuth: get App ID + App Secret from developers.facebook.com → add `FB_APP_ID=` and `FB_APP_SECRET=` to `apps/backend/.env`, then register `http://localhost:3000/facebook/callback` as Valid OAuth Redirect URI
+- Stripe keys are already in `.env` (code-complete)
+- Khalti key is already in `.env` (`PAYMENT_KHALTI_SECRET_KEY=4947e8b69405422da596b23c7ee4b1b6`)
 
-**All tests green at session end:**
+**All tests green at session end (verified by running, not from memory):**
 - Backend: 150 passing, 25 suites
-- Admin console TypeScript: 0 errors
-- Git: clean master branch
+- Customer-web: 18 passing, 4 suites
+- Admin console: 21 passing, 4 suites
+- Git: clean master branch, 17 commits ahead of origin
 
-**Next:** MVP checklist is 9/9 complete. Remaining work is credential provisioning (gateway sandbox keys + Facebook App credentials) + pilot onboarding. SMS template admin UI and analytics refinements are optional Phase 2 polish.
+**Next:** credential provisioning (eSewa sandbox secret + Facebook App credentials) → end-to-end payment testing on device → pilot onboarding. Nothing code-wise is blocked.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
