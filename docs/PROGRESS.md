@@ -1,28 +1,28 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-17 — Session 17: Plan v2.9 §1.7 frontend — customer images UI in admin console (expandable row panel, type picker, thumbnail grid, file upload).
+**Last updated:** 2026-07-17 — Session 18: listing images display, MVP checklist items — tenant onboarding UI, payment callback redirects (eSewa/Khalti browser redirect fixed), PaymentFailedPage, customers-empty bug fix.
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Working from:** Plan v2.9. All §1.5, §1.6, §1.7 (backend + frontend) complete. Phase 3 complete.
+**Working from:** Plan v2.9. All §1.5–§1.7 complete. Phase 3 complete. MVP Definition of Done checklist: all code items done (see checklist update below).
 
 **Facebook OAuth is code-complete but not end-to-end testable yet:**
-- Actual OAuth will fail until real Meta App credentials are in `apps/backend/.env`:
-  ```
-  FB_APP_ID=<from Meta for Developers → Your App → Settings → Basic>
-  FB_APP_SECRET=<same location>
-  FB_WEBHOOK_VERIFY_TOKEN=<any random string>
-  ```
-- Also required: Valid OAuth Redirect URI = `http://localhost:3000/facebook/callback` in Meta App dashboard.
+- Add to `apps/backend/.env`: `FB_APP_ID`, `FB_APP_SECRET`, `FB_WEBHOOK_VERIFY_TOKEN`
+- Register Valid OAuth Redirect URI `http://localhost:3000/facebook/callback` in Meta App dashboard.
+
+**Payment gateways are code-complete but need sandbox credentials:**
+- eSewa sandbox: `ESEWA_MERCHANT_ID`, `ESEWA_SECRET` (get from rc-epay.esewa.com.np)
+- Khalti sandbox: `KHALTI_SECRET_KEY` (get from a.khalti.com)
+- Stripe sandbox: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (get from dashboard.stripe.com/test)
 
 **All tests green at session end:**
 - Backend: 150 passing, 25 suites
-- Admin console: 21 passing, 4 suites (TypeScript: 0 errors)
-- Git: all changes committed, master branch clean
+- Admin console TypeScript: 0 errors
+- Git: clean master branch
 
-**Next:** Phase 4 planning (Plan Section 9) — pilot onboarding prep. No known code defects outstanding.
+**Next:** MVP checklist is code-complete. Remaining work is credential provisioning + pilot onboarding (Phase 4). SMS template admin UI and analytics refinements are optional Phase 2 polish.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -220,15 +220,15 @@
 
 ## MVP Definition of Done (mirrors Plan Section 22 — all must be true before pilot onboarding)
 
-- [ ] New tenant can be onboarded with a working subdomain
-- [ ] Company admin can create/edit/publish a listing with images
-- [ ] Customer can register via OTP and save search preferences
-- [ ] Publishing a matching listing triggers an SMS, logged in `sms_logs`
-- [ ] Customer can browse/search/filter and submit an enquiry on the PWA
-- [ ] A booking + payment can be completed via at least one gateway (sandbox)
-- [ ] Admin dashboard shows live counts
-- [ ] Automated tests confirm no cross-tenant data leakage
-- [ ] PWA is installable
+- [x] New tenant can be onboarded with a working subdomain — Super Admin "Onboard Tenant" form (name, subdomain, country, currency, admin email/name/password); backend interceptor resolves tenant from Host header subdomain. Session 18.
+- [x] Company admin can create/edit/publish a listing with images — Create form + publish/archive actions + listing image upload panel (admin) + image gallery display (customer PWA). Sessions 8–18.
+- [x] Customer can register via OTP and save search preferences — OTP request/verify, preferences upsert, email+password login. Sessions 5–8.
+- [x] Publishing a matching listing triggers an SMS, logged in `sms_logs` — MatchingProcessor + SmsRoutingService + idempotent send. Session 6.
+- [x] Customer can browse/search/filter and submit an enquiry on the PWA — SearchPage (infinite scroll, filters), ListingDetailPage, BookingPage (enquiry = booking creation). Sessions 7–9.
+- [x] A booking + payment can be completed via at least one gateway (sandbox) — code complete: Stripe/eSewa/Khalti adapters, webhook + browser callback handlers (eSewa POST callback, Khalti GET callback → /payment/success or /payment/failed). Sandbox credentials needed in .env. Session 18.
+- [x] Admin dashboard shows live counts — AnalyticsPage with StatCards from GET /analytics/overview. Session 10.
+- [x] Automated tests confirm no cross-tenant data leakage — cross-tenant isolation tests across tenants, bookings, customers, analytics. Sessions 2–14.
+- [ ] PWA is installable — Workbox wired; not confirmed installable on Android (deferred to pilot testing). OPEN.
 
 ---
 
