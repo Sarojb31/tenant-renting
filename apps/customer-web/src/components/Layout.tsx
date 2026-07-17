@@ -1,9 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { customer, logout } = useAuthStore();
   const nav = useNavigate();
+  const { canInstall, install, dismiss } = useInstallPrompt();
 
   function handleLogout() {
     logout();
@@ -41,6 +43,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
+
+      {canInstall && (
+        <div className="bg-brand-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📱</span>
+            <span>Add RoomFinder to your home screen for the best experience.</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => void install()}
+              className="bg-white text-brand-700 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-brand-50 transition-colors"
+            >
+              Install
+            </button>
+            <button
+              onClick={dismiss}
+              className="text-brand-200 hover:text-white text-lg leading-none"
+              aria-label="Dismiss install prompt"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6">
         {children}
