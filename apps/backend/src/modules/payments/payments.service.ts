@@ -86,13 +86,11 @@ export class PaymentsService {
     const plan = await this.planRepo.findOne({ where: { id: dto.planId } });
     if (!plan) throw new NotFoundException('Plan not found');
 
-    // Upsert the subscription record (pending payment)
+    // Upsert the subscription record — store intent in pendingPlanId, never overwrite active planId
     let sub = await this.subRepo.findOne({ where: { tenantId } });
     const now = new Date();
     if (sub) {
-      sub.planId = plan.id;
-      sub.plan = plan;
-      sub.status = SubscriptionStatus.PAST_DUE;
+      sub.pendingPlanId = plan.id;
       sub = await this.subRepo.save(sub);
     } else {
       sub = await this.subRepo.save({
@@ -165,8 +163,11 @@ export class PaymentsService {
       } else if (payment.payableType === PayableType.SUBSCRIPTION) {
         const sub = await this.subRepo.findOne({ where: { id: payment.payableId } });
         if (sub) {
-          const plan = await this.planRepo.findOne({ where: { id: sub.planId } });
+          const resolvedPlanId = sub.pendingPlanId ?? sub.planId;
+          const plan = await this.planRepo.findOne({ where: { id: resolvedPlanId } });
           const now = new Date();
+          sub.planId = resolvedPlanId;
+          sub.pendingPlanId = null;
           sub.status = SubscriptionStatus.ACTIVE;
           sub.currentPeriodStart = now;
           sub.currentPeriodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
