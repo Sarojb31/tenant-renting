@@ -22,7 +22,7 @@
 - Admin console TypeScript: 0 errors
 - Git: clean master branch
 
-**Next:** MVP checklist is code-complete. Remaining work is credential provisioning + pilot onboarding (Phase 4). SMS template admin UI and analytics refinements are optional Phase 2 polish.
+**Next:** MVP checklist is 9/9 complete. Remaining work is credential provisioning (gateway sandbox keys + Facebook App credentials) + pilot onboarding. SMS template admin UI and analytics refinements are optional Phase 2 polish.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -228,7 +228,7 @@
 - [x] A booking + payment can be completed via at least one gateway (sandbox) — code complete: Stripe/eSewa/Khalti adapters, webhook + browser callback handlers (eSewa POST callback, Khalti GET callback → /payment/success or /payment/failed). Sandbox credentials needed in .env. Session 18.
 - [x] Admin dashboard shows live counts — AnalyticsPage with StatCards from GET /analytics/overview. Session 10.
 - [x] Automated tests confirm no cross-tenant data leakage — cross-tenant isolation tests across tenants, bookings, customers, analytics. Sessions 2–14.
-- [ ] PWA is installable — Workbox wired; not confirmed installable on Android (deferred to pilot testing). OPEN.
+- [x] PWA is installable — manifest complete (id, scope, orientation, purpose: any maskable on 512px icon, theme_color #0284c7), Apple PWA meta tags, favicon.svg created, useInstallPrompt hook + dismissible install banner in Layout. Workbox runtimeCaching fixed for all API origins. Session 18.
 
 ---
 
