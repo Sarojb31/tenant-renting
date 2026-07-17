@@ -119,7 +119,7 @@ export function CustomersPage() {
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
     queryFn: () => fetchCustomers().then((r) => r.data),
   });
@@ -196,14 +196,14 @@ export function CustomersPage() {
     }),
   ];
 
-  const customers = data?.data ?? [];
+  const customerList = customers ?? [];
 
   return (
     <Layout title="Customers">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          {data && (
-            <p className="text-sm text-gray-500">{data.total} customer{data.total !== 1 ? 's' : ''} registered</p>
+          {customers && (
+            <p className="text-sm text-gray-500">{customers.length} customer{customers.length !== 1 ? 's' : ''} registered</p>
           )}
           <button
             onClick={() => { setShowCreate(true); setError(''); }}
@@ -260,7 +260,7 @@ export function CustomersPage() {
         )}
 
         <DataTable
-          data={customers}
+          data={customerList}
           columns={columns}
           isLoading={isLoading}
           emptyMessage="No customers yet. Create one above or they register via OTP on the customer PWA."

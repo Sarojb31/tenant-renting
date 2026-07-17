@@ -10,10 +10,8 @@ export interface Customer {
   createdAt: string;
 }
 
-export interface CustomersRes { data: Customer[]; total: number }
-
 export const fetchCustomers = (params?: Record<string, string | number>) =>
-  api.get<CustomersRes>('/customers', { params });
+  api.get<Customer[]>('/customers', { params });
 
 export const fetchCustomer = (id: string) => api.get<Customer>(`/customers/${id}`);
 
