@@ -21,8 +21,26 @@ export function ListingCard({ listing, isFavorited = false, onToggleFavorite }: 
       to={`/listings/${listing.id}`}
       className="block bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow overflow-hidden"
     >
-      <div className="relative bg-gray-100 h-40 flex items-center justify-center text-gray-300 text-4xl">
-        🏠
+      <div className="relative bg-gray-100 h-40 flex items-center justify-center text-gray-300 text-4xl overflow-hidden">
+        {listing.images && listing.images.length > 0 ? (
+          <img
+            src={listing.images[0].url}
+            alt={listing.title}
+            className="h-40 w-full object-cover"
+            onError={(e) => {
+              const target = e.currentTarget;
+              target.style.display = 'none';
+              const placeholder = target.nextElementSibling as HTMLElement | null;
+              if (placeholder) placeholder.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <span
+          className="absolute inset-0 flex items-center justify-center text-gray-300 text-4xl"
+          style={{ display: listing.images && listing.images.length > 0 ? 'none' : 'flex' }}
+        >
+          🏠
+        </span>
         {onToggleFavorite && (
           <button
             onClick={(e) => {

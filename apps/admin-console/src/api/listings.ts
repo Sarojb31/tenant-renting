@@ -77,3 +77,16 @@ export const bulkUploadListings = (file: File) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 };
+
+export interface ListingImage { id: string; url: string; sortOrder: number }
+
+export const fetchListingImages = (listingId: string) =>
+  api.get<ListingImage[]>(`/listings/${listingId}/images`);
+
+export const uploadListingImages = (listingId: string, files: File[]) => {
+  const form = new FormData();
+  files.forEach((f) => form.append('images', f));
+  return api.post<ListingImage[]>(`/listings/${listingId}/images`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};

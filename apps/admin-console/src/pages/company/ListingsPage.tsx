@@ -12,6 +12,8 @@ import {
   deleteListing,
   bulkUploadListings,
   createListing,
+  fetchListingImages,
+  uploadListingImages,
   type Listing,
   type BulkUploadResult,
   type CreateListingDto,
@@ -210,12 +212,89 @@ function AvailabilityPanel({ listing, onClose }: { listing: Listing; onClose: ()
   );
 }
 
+function ListingImagesPanel({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadErr, setUploadErr] = useState('');
+
+  const { data: images, isLoading } = useQuery({
+    queryKey: ['listing-images', listing.id],
+    queryFn: () => fetchListingImages(listing.id).then((r) => r.data),
+  });
+
+  const upload = useMutation({
+    mutationFn: (files: File[]) => uploadListingImages(listing.id, files),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['listing-images', listing.id] });
+      setUploadErr('');
+      if (fileRef.current) fileRef.current.value = '';
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? 'Upload failed.';
+      setUploadErr(Array.isArray(msg) ? msg.join(', ') : String(msg));
+    },
+  });
+
+  return (
+    <div className="border border-gray-100 rounded-xl bg-gray-50 p-4 mt-1 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700">Images — {listing.title}</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">Close</button>
+      </div>
+
+      {isLoading && <p className="text-xs text-gray-400">Loading…</p>}
+
+      {!isLoading && images?.length === 0 && (
+        <p className="text-xs text-gray-400 italic">No images uploaded yet.</p>
+      )}
+
+      {images && images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {images.map((img) => (
+            <div key={img.id} className="relative">
+              <img
+                src={img.url}
+                alt="listing"
+                className="h-20 w-20 object-cover rounded-lg border border-gray-200"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            if (files.length) upload.mutate(files);
+          }}
+        />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={upload.isPending}
+          className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:border-gray-300 disabled:opacity-50"
+        >
+          {upload.isPending ? 'Uploading…' : '+ Upload Images'}
+        </button>
+        {uploadErr && <p className="text-red-600 text-xs">{uploadErr}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function ListingsPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [imagesListingId, setImagesListingId] = useState<string | null>(null);
   const [shareListingId, setShareListingId] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -329,6 +408,12 @@ export function ListingsPage() {
               className="text-xs text-gray-500 hover:text-brand-600 hover:underline"
             >
               Availability
+            </button>
+            <button
+              onClick={() => setImagesListingId(imagesListingId === row.id ? null : row.id)}
+              className="text-xs text-purple-600 hover:underline"
+            >
+              Images
             </button>
             <button
               onClick={() => setShareListingId(row.id)}
@@ -528,6 +613,13 @@ export function ListingsPage() {
           const selectedListing = listings.find((l) => l.id === expandedId);
           return selectedListing ? (
             <AvailabilityPanel listing={selectedListing} onClose={() => setExpandedId(null)} />
+          ) : null;
+        })()}
+
+        {imagesListingId && (() => {
+          const selectedListing = listings.find((l) => l.id === imagesListingId);
+          return selectedListing ? (
+            <ListingImagesPanel listing={selectedListing} onClose={() => setImagesListingId(null)} />
           ) : null;
         })()}
       </div>

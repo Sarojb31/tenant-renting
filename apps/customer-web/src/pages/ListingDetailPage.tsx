@@ -147,6 +147,7 @@ export function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const { token } = useAuthStore();
+  const [selectedImg, setSelectedImg] = useState(0);
 
   const { data: listing, isLoading, isError } = useQuery({
     queryKey: ['listing', id],
@@ -181,9 +182,56 @@ export function ListingDetailPage() {
   return (
     <Layout>
       <div className="space-y-5">
-        <div className="bg-gray-100 rounded-xl h-52 flex items-center justify-center text-gray-300 text-6xl">
-          🏠
-        </div>
+        {listing.images && listing.images.length > 0 ? (
+          <div className="space-y-2">
+            <div className="relative bg-gray-100 rounded-xl overflow-hidden aspect-video">
+              <img
+                src={listing.images[selectedImg]?.url}
+                alt={listing.title}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                  const placeholder = target.nextElementSibling as HTMLElement | null;
+                  if (placeholder) placeholder.style.display = 'flex';
+                }}
+              />
+              <span
+                className="absolute inset-0 flex items-center justify-center text-gray-300 text-6xl"
+                style={{ display: 'none' }}
+              >
+                🏠
+              </span>
+            </div>
+            {listing.images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {listing.images.map((img, idx) => (
+                  <button
+                    key={img.id}
+                    onClick={() => setSelectedImg(idx)}
+                    className={`shrink-0 h-16 w-20 rounded overflow-hidden border-2 transition-colors ${
+                      idx === selectedImg ? 'border-brand-600' : 'border-transparent'
+                    }`}
+                    aria-label={`View image ${idx + 1}`}
+                  >
+                    <img
+                      src={img.url}
+                      alt={`${listing.title} thumbnail ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget.parentElement as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-gray-100 rounded-xl h-52 flex items-center justify-center text-gray-300 text-6xl">
+            🏠
+          </div>
+        )}
 
         <div>
           <div className="flex items-start justify-between gap-3">
