@@ -8,9 +8,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { CustomersService } from './customers.service';
@@ -84,6 +89,27 @@ export class CustomersController {
   ): Promise<CustomerPreference> {
     this.assertStaffOrSelf(req, id);
     return this.customersService.upsertPreference(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Upload images for a customer (Staff only)' })
+  @ApiBearerAuth()
+  @Roles(...WRITE_ROLES)
+  @Post(':id/images')
+  @UseInterceptors(FilesInterceptor('images', 10, { storage: memoryStorage() }))
+  addImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Query('type') type?: string,
+  ) {
+    return this.customersService.addImages(id, files, type);
+  }
+
+  @ApiOperation({ summary: 'List images for a customer' })
+  @ApiBearerAuth()
+  @Roles(...READ_ROLES)
+  @Get(':id/images')
+  findImages(@Param('id', ParseUUIDPipe) id: string) {
+    return this.customersService.findImages(id);
   }
 
   // Staff (type='user') can access any customer in their tenant.

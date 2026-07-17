@@ -72,7 +72,7 @@ export class AnalyticsService {
       .createQueryBuilder('p')
       .select('COALESCE(SUM(CAST(p.amount AS numeric)), 0)', 'total')
       .addSelect('p.currency', 'currency')
-      .where('p.tenantId = :tenantId AND p.status = :status', { tenantId, status: 'success' })
+      .where('p.tenant_id = :tenantId AND p.status = :status', { tenantId, status: 'success' })
       .groupBy('p.currency')
       .getRawOne<{ total: string; currency: string }>();
 

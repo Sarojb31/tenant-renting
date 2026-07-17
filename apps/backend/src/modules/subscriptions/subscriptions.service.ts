@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionPlan } from './subscription-plan.entity';
@@ -26,33 +26,84 @@ export class SubscriptionsService {
     return this.subRepo.findOne({ where: { tenantId } });
   }
 
-  async subscribe(tenantId: string, planId: string): Promise<TenantSubscription> {
+  /**
+   * Apply a plan change.
+   *
+   * Free plans (price_monthly = 0): applied immediately, no payment required.
+   * Paid upgrades / new paid subscriptions: caller must use POST /payments/subscription-intent.
+   * Paid downgrades: recorded as pending_plan_id; applied at next billing cycle to prevent
+   * gaming (upgrade → drain credits → downgrade).
+   */
+  async subscribe(tenantId: string, planId: string): Promise<TenantSubscription & { pendingDowngrade?: boolean }> {
     const plan = await this.planRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
 
+    const isFree = parseFloat(plan.priceMonthly as unknown as string) === 0;
     const existing = await this.subRepo.findOne({ where: { tenantId } });
     const now = new Date();
     const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    if (existing) {
-      existing.planId = plan.id;
-      existing.plan = plan;
-      existing.status = SubscriptionStatus.ACTIVE;
-      existing.currentPeriodStart = now;
-      existing.currentPeriodEnd = periodEnd;
-      existing.smsCreditsRemaining = plan.smsCreditsIncluded;
-      return this.subRepo.save(existing);
+    // Free tier: apply immediately
+    if (isFree) {
+      if (existing) {
+        existing.planId = plan.id;
+        existing.plan = plan;
+        existing.status = SubscriptionStatus.ACTIVE;
+        existing.currentPeriodStart = now;
+        existing.currentPeriodEnd = periodEnd;
+        existing.smsCreditsRemaining = plan.smsCreditsIncluded;
+        existing.pendingPlanId = null;
+        return this.subRepo.save(existing);
+      }
+      return this.subRepo.save({
+        tenantId,
+        planId: plan.id,
+        plan,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        smsCreditsRemaining: plan.smsCreditsIncluded,
+        pendingPlanId: null,
+      } as TenantSubscription);
     }
 
-    return this.subRepo.save({
-      tenantId,
-      planId: plan.id,
-      plan,
-      status: SubscriptionStatus.ACTIVE,
-      currentPeriodStart: now,
-      currentPeriodEnd: periodEnd,
-      smsCreditsRemaining: plan.smsCreditsIncluded,
-    } as TenantSubscription);
+    // Paid plan: no existing subscription → must go through payment intent
+    if (!existing) {
+      throw new BadRequestException(
+        'Use POST /payments/subscription-intent to subscribe to a paid plan.',
+      );
+    }
+
+    const currentPrice = parseFloat(existing.plan?.priceMonthly as unknown as string ?? '0');
+    const newPrice = parseFloat(plan.priceMonthly as unknown as string);
+
+    // Upgrade: must go through payment intent
+    if (newPrice >= currentPrice) {
+      throw new BadRequestException(
+        'Use POST /payments/subscription-intent to upgrade to a paid plan.',
+      );
+    }
+
+    // Downgrade to a still-paid tier: schedule for next billing cycle
+    existing.pendingPlanId = plan.id;
+    const saved = await this.subRepo.save(existing);
+    return { ...saved, pendingDowngrade: true };
+  }
+
+  /** Apply a pending downgrade recorded by subscribe(). Called at billing cycle renewal. */
+  async applyPendingPlan(tenantId: string): Promise<void> {
+    const sub = await this.subRepo.findOne({ where: { tenantId } });
+    if (!sub?.pendingPlanId) return;
+    const plan = await this.planRepo.findOne({ where: { id: sub.pendingPlanId } });
+    if (!plan) return;
+    const now = new Date();
+    sub.planId = plan.id;
+    sub.plan = plan;
+    sub.pendingPlanId = null;
+    sub.smsCreditsRemaining = plan.smsCreditsIncluded;
+    sub.currentPeriodStart = now;
+    sub.currentPeriodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await this.subRepo.save(sub);
   }
 
   async cancel(tenantId: string): Promise<TenantSubscription> {

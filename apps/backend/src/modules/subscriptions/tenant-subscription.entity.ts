@@ -37,6 +37,9 @@ export class TenantSubscription {
   @Column({ name: 'sms_credits_remaining', type: 'int', default: 0 })
   smsCreditsRemaining!: number;
 
+  @Column({ name: 'pending_plan_id', type: 'uuid', nullable: true })
+  pendingPlanId!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

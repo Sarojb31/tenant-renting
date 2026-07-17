@@ -1,36 +1,28 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-16 — Session 15: fixed Facebook OAuth JWT delivery bug + TypeORM column type errors; committed pre-existing uncommitted work (paginated tenant/payment endpoints, entity column names, plan v2.6 docs).
+**Last updated:** 2026-07-17 — Session 16: Plan v2.9 — subscription payment gate (§1.5), analytics isolation fix + zero-state tests (§1.6), customer images endpoint (§1.7).
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Working from:** Plan v2.6. All Phase 3 items complete. Next: Phase 4 planning (Plan Section 9).
+**Working from:** Plan v2.9. All Phase 3 items complete. All v2.9 bug fixes and new scope complete.
 
 **Facebook OAuth is code-complete but not end-to-end testable yet:**
-- `GET /facebook/connect` returns `{ url }` JSON (no `@Redirect`) — frontend calls via Axios (with JWT), then `window.location.href = data.url`. This fixes the 401 that was breaking the flow.
 - Actual OAuth will fail until real Meta App credentials are in `apps/backend/.env`:
   ```
   FB_APP_ID=<from Meta for Developers → Your App → Settings → Basic>
   FB_APP_SECRET=<same location>
   FB_WEBHOOK_VERIFY_TOKEN=<any random string>
   ```
-  These were not in `.env` at session end. Backend defaults to empty string → Meta returns "Invalid App ID."
-- Also required in Meta App dashboard: **Valid OAuth Redirect URI** = `http://localhost:3000/facebook/callback` (must match `APP_BASE_URL` in `.env` exactly).
-- Once credentials are in place, the full OAuth flow should work without code changes.
+- Also required: Valid OAuth Redirect URI = `http://localhost:3000/facebook/callback` in Meta App dashboard.
 
 **All tests green at session end:**
-- Backend: 141 passing, 23 suites
+- Backend: 150 passing, 25 suites (up from 141/23)
 - Admin console: 21 passing, 4 suites
-- Git: clean master branch, 5 commits ahead of origin
+- Git: clean master branch
 
-**Pre-existing uncommitted work flushed this session** (was on disk but not committed — found during end-of-session sweep):
-- `GET /tenants` paginated list (super_admin only)
-- `GET /payments` paginated list (super_admin sees all, company_admin scoped)
-- `booking.entity` + `payment.entity`: explicit `name:` on all `@Column` decorators (same TypeORM "Data type Object" fix as `fbAppId`)
-- `package.json` `migration:fresh` convenience script
-- Plan v2.6 doc updates + `PLAN_UPDATE_PROMPT.md` + `docs/Claude.md` Section 10
+**Next:** Phase 4 planning (Plan Section 9) — pilot onboarding prep. No known code defects outstanding.
 
 **Phase 2 items DONE this session:**
 - Subscriptions schema (3 migrations: subscription_plans, tenant_subscriptions, sms_templates)
@@ -168,6 +160,12 @@
 - [x] Auth store `Customer` interface updated: `phone` and `email` both optional (either auth flow works).
 - [x] Billing / analytics views — AnalyticsPage + SubscriptionPage added in Phase 2.
 
+## Plan v2.9 Additions
+
+- [x] §1.5 — Subscription plan changes payment-gated: `subscribe()` throws `BadRequestException` for paid-plan upgrades/new subscriptions (must use `/payments/subscription-intent`); free tier applies immediately; paid downgrade sets `pendingPlanId` for next billing cycle. Migration `1752500000000-AddPendingPlanToSubscriptions`. `applyPendingPlan()` helper added to service. 6 new tests (was 9 subscription tests, now 15).
+- [x] §1.6 — Analytics isolation bug fixed: raw QueryBuilder `p.tenantId` → `p.tenant_id` (TypeORM doesn't translate property names in string WHERE clauses). Zero-state analytics test added: 3 tests asserting every count = 0 for empty tenant and that tenantId is passed to every scoped query.
+- [x] §1.7 — Customer images: migration `1752500001000-CreateCustomerImages`, `CustomerImage` entity (tenant_id, customer_id, url, type, sort_order), `POST /customers/:id/images` + `GET /customers/:id/images` endpoints mirroring listing images exactly. StorageModule imported into CustomersModule. 3 tests: upload success, cross-tenant 404, type defaults to 'other'.
+
 ## Phase 2 — Core SaaS Hardening (in progress)
 
 ### Subscriptions & Billing
@@ -256,12 +254,14 @@ _(Running log. Format: date — what changed vs. the Plan — why — resolved /
 - 2026-07-16 — Facebook multi-tenant architecture (§4.12) — RESOLVED in Session 14 (Plan v2.6). `tenant_facebook_connections` table now exists, OAuth + BYO-app flows built, webhook lookup-before-verify migrated. The OPEN deviation is now fully closed. The `x-tenant-id` header approach (prior deviation) has been removed from the webhook handler.
 - 2026-07-16 — `GET /facebook/connect` originally used `@Redirect()` which caused 401 on every OAuth click (browser navigation doesn't carry `Authorization: Bearer`). Fixed in Session 15: endpoint returns `{ url }` JSON; frontend calls via Axios then navigates with `window.location.href`. RESOLVED.
 - 2026-07-16 — `FB_APP_ID` and `FB_APP_SECRET` not yet added to `apps/backend/.env`. Facebook OAuth config is correct in code (`configuration.ts` has the keys), but actual end-to-end OAuth will fail until real credentials are provided. Not a code defect — a credential provisioning step. OPEN — requires Meta App setup by operator before pilot testing.
+- 2026-07-17 — Plan v2.9 §1.5: existing subscription tests for "creates new subscription" and "upgrades existing subscription" tested now-removed behavior (paid-plan immediate apply). Tests updated to match the gated behavior — no functionality was removed, behavior was corrected. RESOLVED.
+- 2026-07-17 — Analytics raw QueryBuilder `p.tenantId` in string WHERE clause was not translated to column name `tenant_id` by TypeORM. Fixed to `p.tenant_id`. Only affects the revenue sum query (other analytics uses ORM-level `.count({ where: {...} })` which does translate correctly). RESOLVED.
 
 ## Test Coverage Snapshot
 
 _(Agent updates this after significant test runs — rough numbers are fine, this is a trend indicator, not an audit.)_
 
-- Backend unit tests: **141 passing** (130 prior + 11 facebook-connection) — 23 test suites, all green
+- Backend unit tests: **150 passing** (141 prior + 3 analytics-zero-state + 6 subscription-payment-gate + 3 customer-images) — 25 test suites, all green
 - Backend integration tests: **96 passing** (unchanged — Phase 3 unit tests only)
 - Frontend component tests (customer-web): **18 passing** (ListingCard ×5, SearchFilters ×3, LoginPage ×8, ProtectedRoute ×2)
 - Frontend component tests (admin-console): **21 passing** (StatusBadge ×9, StatCard ×4, ProtectedRoute ×4, LoginPage ×4)

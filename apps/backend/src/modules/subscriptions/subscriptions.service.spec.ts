@@ -2,7 +2,7 @@ import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionPlan } from './subscription-plan.entity';
 import { TenantSubscription } from './tenant-subscription.entity';
 import { SubscriptionStatus } from '@common/enums/subscription-status.enum';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ObjectLiteral, Repository } from 'typeorm';
 
 function makeRepo<T extends ObjectLiteral>(overrides: Partial<Repository<T>> = {}): Repository<T> {
@@ -30,6 +30,8 @@ function makePlan(overrides: Partial<SubscriptionPlan> = {}): SubscriptionPlan {
   };
 }
 
+const FREE_PLAN = makePlan({ id: 'plan-free', name: 'free', priceMonthly: '0.00', smsCreditsIncluded: 50 });
+
 function makeSub(overrides: Partial<TenantSubscription> = {}): TenantSubscription {
   const plan = makePlan();
   return {
@@ -41,6 +43,7 @@ function makeSub(overrides: Partial<TenantSubscription> = {}): TenantSubscriptio
     currentPeriodStart: new Date(),
     currentPeriodEnd: new Date(Date.now() + 30 * 86400000),
     smsCreditsRemaining: 200,
+    pendingPlanId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -67,25 +70,59 @@ describe('SubscriptionsService.subscribe', () => {
     await expect(svc.subscribe('tenant-1', 'bad-plan')).rejects.toThrow(NotFoundException);
   });
 
-  it('creates new subscription when none exists', async () => {
+  it('applies free plan immediately with no existing subscription', async () => {
+    const planRepo = makeRepo<SubscriptionPlan>({ findOne: jest.fn().mockResolvedValue(FREE_PLAN) });
+    const subRepo = makeRepo<TenantSubscription>({ findOne: jest.fn().mockResolvedValue(null) });
+    const svc = buildService(planRepo, subRepo);
+    await svc.subscribe('tenant-1', 'plan-free');
+    expect(subRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'tenant-1', smsCreditsRemaining: 50, status: SubscriptionStatus.ACTIVE }),
+    );
+  });
+
+  it('applies free plan immediately when existing subscription present', async () => {
+    const planRepo = makeRepo<SubscriptionPlan>({ findOne: jest.fn().mockResolvedValue(FREE_PLAN) });
+    const existing = makeSub();
+    const subRepo = makeRepo<TenantSubscription>({ findOne: jest.fn().mockResolvedValue(existing) });
+    const svc = buildService(planRepo, subRepo);
+    await svc.subscribe('tenant-1', 'plan-free');
+    expect(subRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ smsCreditsRemaining: 50, status: SubscriptionStatus.ACTIVE, pendingPlanId: null }),
+    );
+  });
+
+  it('throws BadRequestException for paid plan when no subscription exists', async () => {
     const plan = makePlan();
     const planRepo = makeRepo<SubscriptionPlan>({ findOne: jest.fn().mockResolvedValue(plan) });
     const subRepo = makeRepo<TenantSubscription>({ findOne: jest.fn().mockResolvedValue(null) });
     const svc = buildService(planRepo, subRepo);
-    await svc.subscribe('tenant-1', 'plan-1');
-    expect(subRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ tenantId: 'tenant-1', smsCreditsRemaining: 200 }),
-    );
+    await expect(svc.subscribe('tenant-1', 'plan-1')).rejects.toThrow(BadRequestException);
+    // plan_id must NOT have changed
+    expect(subRepo.save).not.toHaveBeenCalled();
   });
 
-  it('upgrades existing subscription in place', async () => {
-    const plan = makePlan({ name: 'pro', smsCreditsIncluded: 1000 });
-    const planRepo = makeRepo<SubscriptionPlan>({ findOne: jest.fn().mockResolvedValue(plan) });
+  it('throws BadRequestException for paid plan upgrade (must go through payment intent)', async () => {
+    const expensivePlan = makePlan({ id: 'plan-pro', priceMonthly: '99.00', smsCreditsIncluded: 1000 });
+    const planRepo = makeRepo<SubscriptionPlan>({ findOne: jest.fn().mockResolvedValue(expensivePlan) });
+    // Existing plan is cheaper ($29)
     const existing = makeSub();
     const subRepo = makeRepo<TenantSubscription>({ findOne: jest.fn().mockResolvedValue(existing) });
     const svc = buildService(planRepo, subRepo);
-    await svc.subscribe('tenant-1', 'plan-pro');
-    expect(subRepo.save).toHaveBeenCalledWith(expect.objectContaining({ smsCreditsRemaining: 1000 }));
+    await expect(svc.subscribe('tenant-1', 'plan-pro')).rejects.toThrow(BadRequestException);
+    expect(subRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('schedules paid downgrade via pendingPlanId without applying it immediately', async () => {
+    const cheaperPlan = makePlan({ id: 'plan-starter', priceMonthly: '9.00', smsCreditsIncluded: 50 });
+    const planRepo = makeRepo<SubscriptionPlan>({ findOne: jest.fn().mockResolvedValue(cheaperPlan) });
+    const existing = makeSub(); // current plan is $29
+    const subRepo = makeRepo<TenantSubscription>({ findOne: jest.fn().mockResolvedValue(existing) });
+    const svc = buildService(planRepo, subRepo);
+    const result = await svc.subscribe('tenant-1', 'plan-starter');
+    // pendingPlanId set but planId NOT changed
+    expect(subRepo.save).toHaveBeenCalledWith(expect.objectContaining({ pendingPlanId: 'plan-starter' }));
+    expect(subRepo.save).not.toHaveBeenCalledWith(expect.objectContaining({ planId: 'plan-starter' }));
+    expect((result as any).pendingDowngrade).toBe(true);
   });
 });
 
