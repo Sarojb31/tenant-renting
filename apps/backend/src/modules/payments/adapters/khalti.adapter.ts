@@ -44,7 +44,7 @@ export class KhaltiAdapter implements PaymentProvider {
         return_url: `${appBaseUrl}/payments/callback/khalti`,
         website_url: appBaseUrl,
         amount: Math.round(amount * 100),
-        purchase_order_id: String(metadata.bookingId ?? ''),
+        purchase_order_id: String(metadata.bookingId ?? metadata.subscriptionId ?? ''),
         purchase_order_name: String(metadata.orderName ?? 'RoomFinder Booking'),
       },
       { headers: { Authorization: `Key ${this.secretKey}` } },

@@ -28,7 +28,7 @@ export class EsewaAdapter implements PaymentProvider {
     _currency: string,
     metadata: Record<string, unknown>,
   ): Promise<{ redirectUrl?: string; clientSecret?: string; providerRef: string }> {
-    const transactionUuid = String(metadata.bookingId ?? crypto.randomUUID());
+    const transactionUuid = String(metadata.bookingId ?? metadata.subscriptionId ?? crypto.randomUUID());
     const totalAmount = amount.toFixed(2);
 
     const signatureBase = `total_amount=${totalAmount},transaction_uuid=${transactionUuid},product_code=${this.merchantId}`;
