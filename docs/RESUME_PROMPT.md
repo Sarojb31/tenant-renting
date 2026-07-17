@@ -8,3 +8,14 @@ We're resuming work on the RoomFinder SaaS project after a pause. This is a fres
 6. **Continue from the exact next unchecked item** in `PROGRESS.md`'s build order. Don't redo work already marked `[x]` and verified, and don't skip ahead of anything still `[ ]` or `[~]` above it.
 
 Once you've done all of the above, tell me what you found (does the file match reality?) and what you're picking up next — then continue.
+
+
+Priority for this round, in order:
+
+Fix the test-integrity gap first (unchanged from before) — confirm whether integration tests run against synchronize/dropSchema or real migration:run, fix if needed, and treat any newly-surfaced failure as this session's actual bug to fix.
+Fix the subscription payment-bypass bug (Plan Section 1.5) — this is the highest-severity item today, ahead of any new feature work. Confirm whether POST /subscriptions/subscribe currently mutates tenant_subscriptions.plan_id directly. If so: make it create a payment intent instead for any plan with price_monthly > 0, and move the actual plan-change to the webhook handler only, mirroring the booking-payment pattern already correct in Section 4.7. Add the specific test from Section 1.5 (subscribe to a paid plan → plan_id must not change until the webhook fires) before marking this done.
+Fix the analytics zero-state bug (Plan Section 1.6). Start by checking whether the customer-count query in AnalyticsService is tenant-scoped the same way every other query is required to be (Section 17) — that's the most likely cause given this codebase's history. Add the zero-state test from Section 1.6.
+Only after 1–3 are resolved and confirmed, move to the Facebook OAuth work from the previous priority note (Section 26.2 — FB_LOGIN_CONFIG_ID, FB_OAUTH_REDIRECT_URI, the start/callback endpoints).
+Everything else from earlier Plan updates (1.3, 1.4, 14.1) stays behind all of the above.
+
+Report back after (2) specifically — confirm the fix and its test before moving to (3), since a subscription/billing fix is worth a second look before trusting it.

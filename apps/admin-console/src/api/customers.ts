@@ -26,3 +26,23 @@ export interface CreateCustomerDto {
 
 export const createCustomer = (body: CreateCustomerDto) =>
   api.post<Customer>('/customers', body);
+
+export interface CustomerImage {
+  id: string;
+  customerId: string;
+  url: string;
+  type: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export const fetchCustomerImages = (customerId: string) =>
+  api.get<CustomerImage[]>(`/customers/${customerId}/images`);
+
+export const uploadCustomerImages = (customerId: string, files: File[], type = 'other') => {
+  const form = new FormData();
+  files.forEach((f) => form.append('images', f));
+  return api.post<CustomerImage[]>(`/customers/${customerId}/images?type=${encodeURIComponent(type)}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};

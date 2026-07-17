@@ -2,7 +2,7 @@
 
 **Product Type:** Multi-tenant SaaS platform for room-finding / room-rental companies
 **Prepared for:** Product planning, architecture, and development handoff
-**Version:** 2.6 — Added BYO-app as a second Facebook connection method alongside OAuth (Section 4.12/26.3), for tenants unwilling to authorize a shared connector app
+**Version:** 2.9 — Added customer images (Section 1.7), bringing customers to parity with the already-built listing image support
 
 ---
 
@@ -76,8 +76,44 @@ Section 2 always listed "Property Owner" as an optional persona; this formalizes
 The backend has always supported staff creating both listings (`POST /listings`) and customers (`POST /customers`) — this isn't new API scope. What needed spelling out explicitly: **the admin console's Listings and Customers pages must include an actual "Create New" form, not just a table with row-level actions** (publish/archive, SMS opt-in toggle, etc.). Section 4.3 and 4.4's feature bullets always implied this ("Add/edit/delete room listings," "Lead capture... manual entry"), but Section 15's page list only said "Listings (table + publish/archive actions)" and "Customers (table + SMS opt-in)" — reasonable to read as list-and-act views only, with creation happening some other way. It doesn't; the admin console is the only place staff create either one, so this needed to be unambiguous:
 
 - **Company Admin Dashboard → Listings page:** table view **plus** a "Create Listing" form (title, description, rent/deposit, room type, BHK/room count, amenities including feasibility tags, images, availability) — calls the existing `POST /listings` endpoint. Same form, reused for editing.
-- **Company Admin Dashboard → Customers page:** table view **plus** a "Create Customer" form (name, phone, email, initial preferences) — calls the existing `POST /customers` endpoint. Same RBAC as the rest of the page (staff/company_admin write access, agents read-only per the Phase 2 RBAC refinement already built).
+- **Company Admin Dashboard → Customers page:** table view **plus** a "Create Customer" form (name, phone, email, initial preferences, images — Section 1.7) — calls the existing `POST /customers` endpoint plus the new `POST /customers/:id/images` endpoint. Same RBAC as the rest of the page (staff/company_admin write access, agents read-only per the Phase 2 RBAC refinement already built).
 - No backend changes needed — this is a frontend gap to close in the admin console, using endpoints that already exist and are already tested.
+
+---
+
+## 1.5 Bug Fix Required — Subscription Plan Changes Must Be Payment-Gated
+
+**Reported bug:** a Company Admin can switch to a paid subscription plan without making any payment. This is a revenue-integrity bug, not a cosmetic one — as built, it means every tenant can sit on the top-tier plan (unlimited listings, full SMS credits) for free indefinitely.
+
+**Root cause, most likely:** the Plan already established the correct pattern for regular bookings back in Section 4.7 — a payment intent is created, and the actual state change (booking confirmed) only happens inside the webhook handler after the gateway confirms success. The subscriptions module was built with two separate pieces in the same session (`POST /subscriptions/subscribe` for direct plan changes, and a separate `POST /payments/subscription-intent` + webhook flow) — and it's very likely `POST /subscriptions/subscribe` still directly mutates `tenant_subscriptions.plan_id` immediately, with nothing forcing the admin console's "upgrade" button through the payment path first.
+
+**Required fix:**
+- `POST /subscriptions/subscribe` (or whatever endpoint the admin console's plan picker calls) **must not mutate `tenant_subscriptions.plan_id` for any plan with `price_monthly > 0`.** It should create a payment intent (`POST /payments/subscription-intent`) and return a checkout redirect — nothing else.
+- **Only the payment webhook handler is allowed to apply the plan change**, after the gateway confirms success — this mirrors the booking-payment pattern already correctly built in Section 4.7/6, just needed to be enforced identically here.
+- **The one legitimate exception:** switching to a plan where `price_monthly = 0` (the free/trial tier) can apply immediately with no payment step, since there's nothing to charge.
+- **Downgrades to a still-paid tier** shouldn't require an immediate new payment (the tenant already paid for the current period) — schedule the downgrade for the next billing cycle rather than applying it immediately, so it can't be used as a backdoor around the upgrade gate.
+- **Required test, specifically the kind that would have caught this:** an integration test asserting that calling the subscribe endpoint for a paid plan does **not** change `tenant_subscriptions.plan_id` until the corresponding webhook fires with a success event. Add this to Section 20's testing requirements — it's the same class of gap as the migration-vs-synchronize issue: a green test suite that never actually exercised the path that matters.
+
+## 1.6 Bug Fix Required — Analytics Showing Nonzero Counts for Empty Tenants
+
+**Reported bug:** the customer count on a tenant's analytics/dashboard shows 1 when that tenant has zero customers. Most likely causes, roughly in order of likelihood given this codebase's history: (a) the count query in `AnalyticsService` isn't properly scoped by `tenant_id` and is picking up a seeded demo customer belonging to a different tenant — this would be a **cross-tenant isolation leak specifically in the analytics/reporting path**, which is worth treating as seriously as any other isolation bug even though it's "just a count," since the same query pattern likely appears in other analytics numbers; (b) a `COUNT(*)` over a `LEFT JOIN` (e.g. customers joined to preferences) producing a phantom row even when the base table is empty for that tenant; (c) a stale cached value never invalidated after a customer was deleted or reassigned.
+
+**Required fix:**
+- Check whether the customer-count query in `GET /analytics/overview` filters by the resolved tenant context (Section 17) the same way every other tenant-scoped query must — this is the first thing to rule out, given it's the most consistent with problems already seen in this codebase.
+- **Required test, again the kind that would have caught this:** a zero-state integration test — create a brand-new tenant with no customers, call `GET /analytics/overview`, assert every count is `0`. Add this to Section 20 alongside the subscription-payment test above; analytics/reporting endpoints have had no dedicated tests so far per `PROGRESS.md`, which is consistent with this bug going unnoticed.
+
+---
+
+## 1.7 Scope Addition — Customer Images (Parity with Listing Images)
+
+Listings already support multi-image upload (`POST /listings/:id/images`, `listing_images` table, `FILE_STORAGE_PROVIDER` adapter — Section 4.3, already built). Customers don't have any image capability yet. This brings them to parity, reusing the exact same storage mechanism rather than building a second one.
+
+**Deliberately generalized rather than assuming a single intent:** "customer images" could mean a profile photo, an ID/KYC document (common for room rental in this market — landlords often want to see a copy of citizenship/passport before booking), or both. Rather than picking one now, the schema below supports either without commitment — a `type` field on each image row, defaulting to a generic value, that can be narrowed to a stricter taxonomy later (e.g. adding upload validation or a required-document checklist) without a schema change:
+
+- New table **`customer_images`** — `id, tenant_id, customer_id (FK), url, type (varchar, default 'other' — e.g. 'profile_photo', 'id_document', 'other'), sort_order, created_at`. Same tenant-isolation requirement as every other table (Section 17): a 404 if the customer isn't in the caller's tenant.
+- New endpoint **`POST /customers/:id/images`** — mirrors `POST /listings/:id/images` exactly: multer `memoryStorage`, routed through the existing `FILE_STORAGE_PROVIDER` DI token (no new storage adapter needed, Section 4.3/16), same cross-tenant 404 test pattern already proven for listings.
+- The Customer detail view (both the "Create Customer" form from Section 1.4 and the customer table's row-detail/edit view) gets an image upload field, same UI pattern as the Listings "Create Listing" form already specifies.
+- **Required tests, mirroring the listing-image tests already written:** upload success, cross-tenant 404, 401 no auth — the exact same three cases already proven out for `listing_images`, just against the customer endpoint.
 
 ---
 
@@ -169,6 +205,7 @@ The backend has always supported staff creating both listings (`POST /listings`)
 
 **Features:**
 - Customer profile: contact info, budget range, preferred location(s), room type preference, move-in date
+- **Customer images (Section 1.7):** profile photo and/or ID/document images, uploaded via the same storage mechanism already built for listing images — not a separate system
 - Lead capture from website inquiry forms, walk-ins (manual entry), or phone
 - Lead status pipeline (New → Contacted → Site Visit Scheduled → Negotiating → Booked/Lost)
 - Saved search preferences per customer (used by the Matching Engine below)
@@ -500,6 +537,7 @@ Field-level schema, ready to translate into migration files. All tenant-scoped t
 | created_at, updated_at | timestamp | **spelled out here** (unlike other tables) because `created_at` is the keyset sort column for cursor pagination on the public search endpoint — see Section 14.1. Composite index: `(tenant_id, status, created_at DESC, id DESC)`.
 
 **listing_images** — `id, listing_id (FK), url, sort_order`
+**customer_images** *(Section 1.7)* — `id, tenant_id, customer_id (FK), url, type (varchar, default 'other'), sort_order, created_at`
 **amenities** — `id, name (unique), category (enum(general, feasibility), default 'general')` — *(category added post-Phase-1)* lets "near highway" / "near public transport station" style feasibility tags reuse the existing amenity + `listing_amenities` infrastructure instead of a parallel schema
 **listing_amenities** — join table: `listing_id (FK), amenity_id (FK)`, composite PK
 
@@ -613,6 +651,7 @@ jobs/                      (BullMQ processors: matching-dispatch, sms-dispatch, 
 | GET/PATCH/DELETE | /listings/:id | listings | View/update/delete a listing | Public (GET) · Staff |
 | POST | /listings/:id/images | listings | Upload listing images | Staff |
 | GET/POST | /customers | customers | List/create customer records | Staff |
+| POST | /customers/:id/images | customers | Upload customer images — profile/ID photo (Section 1.7) | Staff |
 | PATCH | /customers/:id/preferences | customers | Update saved search preferences | Customer/Staff |
 | POST | /bookings | bookings | Create a booking | Customer/Staff |
 | PATCH | /bookings/:id | bookings | Update booking status | Staff |
@@ -769,6 +808,7 @@ export interface PaymentProvider {
 - Every endpoint validated via `class-validator` DTOs with unknown properties stripped (whitelist mode).
 - Rate limiting (NestJS Throttler) on public endpoints — especially OTP request, search, and the owner-submission endpoint (Section 1.3), which is a new unauthenticated public **write** path and the primary spam vector to guard now that it exists.
 - Mandatory signature verification on all inbound webhooks (payment gateways, Facebook) — for Facebook specifically, verification now requires a `tenant_facebook_connections` lookup by `fb_page_id` first to resolve which App Secret to check against (Section 26.3), since BYO-app tenants bring their own. A tenant-supplied App Secret gets the same encryption-at-rest and least-privilege access treatment as any platform-owned credential — it is not lower-sensitivity just because the tenant provided it.
+- **Billing/subscription state changes are applied only by a confirmed payment webhook, never by a direct client-facing endpoint** (Section 1.5). This is the same pattern already required for booking payments (Section 4.7) — a client-facing endpoint may create a payment intent, but only the webhook, after gateway confirmation, may mutate the actual paid state (`tenant_subscriptions.plan_id`, `bookings.status`, credit balances). Any endpoint that lets a client directly flip a billing-relevant field is the exact bug class covered in Section 1.5.
 - Secrets loaded from a secrets manager (AWS/GCP Secrets Manager) in staging/production — never committed `.env` files.
 - HTTPS + HSTS everywhere.
 - Audit log entries for sensitive actions: refunds, tenant suspension, role changes, plan changes.
@@ -778,10 +818,10 @@ export interface PaymentProvider {
 ## 20. Testing Strategy
 
 - **Unit tests (Jest):** services and adapters, with SMS/payment providers mocked.
-- **Integration tests (Supertest):** against a dockerized test Postgres instance — this is where tenant-isolation edge cases get covered.
+- **Integration tests (Supertest):** against a dockerized test Postgres instance — this is where tenant-isolation edge cases get covered. **The test database must be built by running actual migration files (`migration:run`), not `synchronize: true`/`dropSchema: true`.** TypeORM's `synchronize` auto-generates the schema fresh from current entity definitions on every run — it never actually executes your migrations, so a broken, missing, or out-of-sync migration can pass every integration test and still fail the moment it's run against a real environment. If integration tests are currently using `synchronize`, that's not a minor style choice — it means "tests are green" and "migrations work" are two different, unverified claims, and only the first one is being checked. Fix this before trusting a green integration suite as evidence the backend/DB layer is actually sound.
 - **E2E tests (Playwright/Cypress):** critical customer journey — search → enquire → SMS triggered (mocked) → booking → payment (gateway test/sandbox mode).
 - **Load testing (k6/Artillery):** specifically on the matching engine + SMS dispatch queue before launch — this is the feature most likely to spike under real usage (e.g. one popular listing matching hundreds of saved preferences at once).
-- **CI gate:** PRs blocked unless lint + unit + integration tests pass.
+- **CI gate:** PRs blocked unless lint + unit + integration tests pass — and per above, "integration tests pass" only means something if they ran against migrated schema.
 
 ---
 
@@ -798,7 +838,7 @@ export interface PaymentProvider {
 | `PAYMENT_STRIPE_SECRET_KEY`, `PAYMENT_STRIPE_WEBHOOK_SECRET` | International payments |
 | `PAYMENT_ESEWA_MERCHANT_ID`, `PAYMENT_ESEWA_SECRET` | Nepal payments |
 | `PAYMENT_KHALTI_SECRET_KEY` | Nepal payments |
-| `FB_APP_ID`, `FB_APP_SECRET`, `FB_WEBHOOK_VERIFY_TOKEN` | Phase 3 Facebook Page integration — these three are global (one shared Meta App for the whole platform, Section 4.12). **`FB_PAGE_ACCESS_TOKEN` is intentionally not a global env var** — each tenant's Page token is stored encrypted per-tenant in `tenant_facebook_connections` (Section 12), obtained via OAuth, not hardcoded. |
+| `FB_APP_ID`, `FB_APP_SECRET`, `FB_WEBHOOK_VERIFY_TOKEN`, `FB_LOGIN_CONFIG_ID`, `FB_OAUTH_REDIRECT_URI` | Phase 3 Facebook Page integration — all five are global (one shared Meta App for the whole platform, Section 4.12) and **backend-only**. None belong in a `VITE_*` frontend env var or anywhere in the admin console bundle — the backend constructs the OAuth redirect and does the code exchange server-side (Section 26.2), so the frontend never needs `client_id` directly, only a button that hits your backend's `/facebook/oauth/start` endpoint. **`FB_PAGE_ACCESS_TOKEN` is intentionally not a global env var** — each tenant's Page token is stored encrypted per-tenant in `tenant_facebook_connections` (Section 12), obtained via OAuth, not hardcoded. |
 | `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Listing image storage |
 | `APP_BASE_URL`, `CUSTOMER_APP_BASE_URL` | Used in SMS links, webhooks, CORS |
 | `NODE_ENV` | environment flag |
@@ -911,17 +951,27 @@ Three companion files complete the setup:
 
 ### 26.2 Per-tenant connect flow (what each Company Admin does, from inside your product — not Meta's dashboard)
 
-This is the part your team builds, using the mechanics Meta exposes:
+This is the part your team builds, using the mechanics Meta exposes. **Correction from the earlier version of this section:** Facebook Login *for Business* (needed for `pages_messaging`) doesn't take raw `scope` values the way classic consumer Facebook Login does — it uses a **Login Configuration** you create once in your app dashboard, identified by a `config_id`. Passing `scope` directly still technically works but Meta's own docs say not to rely on it. Reference: **https://developers.facebook.com/documentation/facebook-login/facebook-login-for-business**
 
-1. Company Admin clicks "Connect Facebook Page" in the admin console (Section 4.2/4.12).
-2. This kicks off a **Facebook Login for Business** OAuth flow scoped to `pages_show_list`, `pages_messaging`, and `pages_manage_metadata` — the admin picks which of their Facebook Pages to connect.
-3. Your backend exchanges the resulting user token for a **long-lived Page Access Token** for the selected Page, then stores it encrypted in `tenant_facebook_connections` (Section 12) against that tenant's `tenant_id`.
-4. Your backend calls the Page's `subscribed_apps` edge to subscribe that specific Page to your one shared app's webhook — this is a server-to-server Graph API call, not something the admin does manually in Meta's console:
+1. **One-time setup (add this to Section 26.1's platform setup, not per-tenant):** in your app dashboard, go to **Products → Facebook Login for Business → Configurations**, create a Configuration that bundles `pages_show_list`, `pages_messaging`, and `pages_manage_metadata`, and note the resulting **Configuration ID** — this becomes `FB_LOGIN_CONFIG_ID` (Section 21).
+2. Company Admin clicks "Connect Facebook Page" in the admin console (Section 4.2/4.12). This hits a **backend** endpoint, e.g. `GET /facebook/oauth/start`.
+3. **Your backend constructs the redirect — the frontend never needs to know your App ID.** This is the resolution to "where does the client ID go": `client_id` is required by Facebook's OAuth dialog, but there's no reason for the admin console's frontend bundle to carry it — the backend builds the URL server-side using its own `FB_APP_ID` and `FB_LOGIN_CONFIG_ID` env vars, and 302-redirects the admin's browser to it:
+   ```
+   GET https://www.facebook.com/v25.0/dialog/oauth?client_id=<FB_APP_ID>&redirect_uri=<FB_OAUTH_REDIRECT_URI>&config_id=<FB_LOGIN_CONFIG_ID>&state=<CSRF_TOKEN>
+   ```
+   Reference for this dialog and its parameters: **https://developers.facebook.com/documentation/facebook-login/guides/advanced/manual-flow**. The `redirect_uri` must exactly match a URL registered under **Products → Facebook Login → Settings → Valid OAuth Redirect URIs** in your app dashboard — mismatches are one of the most common setup errors here.
+4. The admin picks which Page to connect on Facebook's side, then gets redirected back to your registered `redirect_uri` (e.g. `GET /facebook/oauth/callback`) with a `code` query param.
+5. **Your backend exchanges that code for a user access token server-to-server** — this is where `FB_APP_SECRET` gets used, and it never leaves the backend:
+   ```
+   GET https://graph.facebook.com/v25.0/oauth/access_token?client_id=<FB_APP_ID>&client_secret=<FB_APP_SECRET>&code=<CODE>&redirect_uri=<FB_OAUTH_REDIRECT_URI>
+   ```
+6. Your backend exchanges that user token for a **long-lived Page Access Token** for the selected Page, then stores it encrypted in `tenant_facebook_connections` (Section 12) against that tenant's `tenant_id`, with `connection_method = oauth_shared_app`.
+7. Your backend calls the Page's `subscribed_apps` edge to subscribe that specific Page to your one shared app's webhook — another server-to-server Graph API call:
    ```
    POST https://graph.facebook.com/<PAGE_ID>/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=<PAGE_ACCESS_TOKEN>
    ```
    Full reference for this call and its requirements (the token needs to come from someone with `MODERATE` access on that Page): **https://developers.facebook.com/documentation/business-messaging/messenger-platform/webhooks** (see "Subscribe to Meta Webhooks" section on that page).
-5. From this point on, a message to that tenant's Page arrives at your **one shared** `/facebook/webhook` endpoint; your handler reads `entry[].id` (the `fb_page_id`) from the payload, looks up which tenant owns that Page in `tenant_facebook_connections`, and files the lead against the correct tenant — this is the mechanism that makes one shared Meta App work safely across many tenants.
+8. From this point on, a message to that tenant's Page arrives at your **one shared** `/facebook/webhook` endpoint; your handler reads `entry[].id` (the `fb_page_id`) from the payload, looks up which tenant owns that Page in `tenant_facebook_connections`, and files the lead against the correct tenant — this is the mechanism that makes one shared Meta App work safely across many tenants.
 
 **For testing/debugging any step above without writing code first:** the **Graph API Explorer** (**https://developers.facebook.com/tools/explorer**) lets you generate tokens and fire test requests (including the `subscribed_apps` call above) directly from the browser — useful for confirming the Meta side works before wiring up your OAuth flow in the admin console.
 

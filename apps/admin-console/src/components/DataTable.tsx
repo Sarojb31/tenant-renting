@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,9 +12,18 @@ interface Props<T> {
   columns: ColumnDef<T, any>[];
   isLoading?: boolean;
   emptyMessage?: string;
+  expandedRow?: string | null;
+  renderExpanded?: (row: T) => React.ReactNode;
 }
 
-export function DataTable<T>({ data, columns, isLoading, emptyMessage = 'No records found.' }: Props<T>) {
+export function DataTable<T>({
+  data,
+  columns,
+  isLoading,
+  emptyMessage = 'No records found.',
+  expandedRow,
+  renderExpanded,
+}: Props<T>) {
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
   return (
@@ -50,15 +60,28 @@ export function DataTable<T>({ data, columns, isLoading, emptyMessage = 'No reco
                   </td>
                 </tr>
               )
-              : table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              : table.getRowModel().rows.map((row) => {
+                const rowId = (row.original as { id?: string }).id;
+                const isExpanded = expandedRow != null && rowId === expandedRow;
+                return (
+                  <React.Fragment key={row.id}>
+                    <tr className="hover:bg-gray-50 transition-colors">
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                    {isExpanded && renderExpanded && (
+                      <tr>
+                        <td colSpan={columns.length} className="p-0">
+                          {renderExpanded(row.original)}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
           </tbody>
         </table>
       </div>

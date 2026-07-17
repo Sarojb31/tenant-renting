@@ -113,27 +113,45 @@ Notes:
 - Keep `PostToolUse` hooks scoped to related tests only (not the full suite) so they stay fast — full-suite runs belong on the `Stop` hook.
 - This is a repo-level `settings.json`, so it applies to every contributor and every agent session equally — nobody can quietly turn it off for one task.
 
-## 8. Parallel Frontend/Backend Development
+## 8. Parallel Development Across Multiple Tracks
 
-The monorepo split in Plan Section 15 (`apps/backend`, `apps/customer-web`, `apps/admin-console`) is intentionally structured so backend and frontend work can run at the same time without one blocking the other. Claude Code supports this natively through **git worktrees** — isolated checkouts that give each session its own directory and branch, so two agents editing at the same time never overwrite each other's files.
+The monorepo split in Plan Section 15 (`apps/backend`, `apps/customer-web`, `apps/admin-console`) is intentionally structured so multiple pieces of work can run at the same time without blocking each other. Claude Code supports this natively through **git worktrees** — isolated checkouts that give each session its own directory and branch, so agents editing at the same time never overwrite each other's files. This generalizes beyond a simple frontend/backend split — a backlog with several independent bug fixes and features can fork into as many tracks as there are genuinely independent sets of files.
 
-**How to run it:**
+### 8.1 How to draw track boundaries
+
+**Track boundaries follow shared-file boundaries, not backlog-item boundaries.** It's tempting to give every Plan section or every bug its own worktree, but that's the wrong unit — the right question for each pair of items is "do they touch the same file?" If two items both edit `CustomersPage.tsx`, they are one track, not two, no matter how unrelated they look in the Plan. Splitting them anyway doesn't make the work go faster — it just delays the inevitable conflict to merge time, where it's harder to resolve than if one agent had just done both in sequence.
+
+**Land foundational/infrastructure fixes first, solo, before forking anything else.** If a change touches shared test setup, CI config, or something every other track's tests will run against (the migration-vs-`synchronize` fix is a good example), fork nothing else until it's merged to `develop`. Every track forked before that fix lands inherits the broken baseline in its own branch, and reconciling that later means rebasing every track individually instead of all of them starting from a known-good point.
+
+**Worked example — splitting a mixed bug-fix-and-feature backlog:**
+- *Land first, solo:* a shared test-infrastructure fix (blocks trusting any other track's test results).
+- *Track:* two small, unrelated backend-only bug fixes with no shared files between them — fine to combine into one track rather than two; a worktree per one-file fix has more coordination overhead than benefit.
+- *Track:* a self-contained feature touching only its own new module + one new admin page nothing else touches.
+- *Track:* a feature and a form that are actually the same feature's two halves (e.g. an upload field that lives inside a create-form) — **keep these together**, even though they might be described in two different Plan sections. They will collide on the same component if split.
+- *Watch for:* two seemingly unrelated features that both happen to add a filter/tab to the same existing admin table page — that's a shared-file collision hiding behind unrelated Plan section numbers. Either sequence them or fold them into one track.
+
+### 8.2 How to run it (N tracks, not just two)
+
 ```bash
-# Terminal 1 — backend agent, isolated checkout on its own branch
-claude --worktree backend-listings
-
-# Terminal 2 — frontend agent, isolated checkout on its own branch
-claude --worktree frontend-listings
+# One terminal per track, each an isolated checkout on its own branch
+claude --worktree fix-subscription-analytics
+claude --worktree feature-fb-oauth
+claude --worktree feature-customer-images
+claude --worktree feature-listing-forms
 ```
-Or, from a single orchestrating session, dispatch each as a subagent with `isolation: worktree` in its definition so Claude manages the worktrees for you instead of you running separate terminals.
+Or, from a single orchestrating session, dispatch each as a subagent with `isolation: worktree` in its definition so Claude manages the worktrees for you instead of you running separate terminals. **Tell each track explicitly what it owns and what it doesn't** — when using `PLAN_UPDATE_PROMPT.md` to brief a specific worktree, append a line naming exactly which Plan section(s) that session is responsible for and that other sessions are handling the rest, so it doesn't try to pick up everything.
 
-**This only works safely if the contract is agreed first:**
+### 8.3 The frontend/backend special case
+
+The most common two-way split is still backend vs. frontend for a single feature, and it needs one extra rule the general case doesn't: **the contract has to be agreed first.**
 1. Before either agent starts, lock the API contract for the feature — DTO shapes, endpoint paths, status codes — either via NestJS's Swagger/OpenAPI output or a shared `packages/api-client` types file (Plan Section 15). Whichever agent gets there first should not be improvising the contract alone.
 2. The frontend agent builds against a mock of that contract (MSW — Mock Service Worker — intercepting requests in dev/test) rather than waiting for the real endpoint to exist.
 3. The backend agent implements the real endpoint to the same contract, independently.
-4. **Merge and run an integration pass before calling the feature done.** Worktrees prevent file collisions, but they do *not* prevent the two agents from interpreting the same contract differently (e.g. one assumes a field is optional, the other assumes it's required). That's a logical conflict, not a file conflict, and only a real integration test run against both sides together will catch it — don't skip this step just because both worktrees individually reported passing tests.
+4. **Merge and run an integration pass before calling the feature done.** Worktrees prevent file collisions, but they do *not* prevent two agents from interpreting the same contract differently (e.g. one assumes a field is optional, the other assumes it's required). That's a logical conflict, not a file conflict, and only a real integration test run against both sides together will catch it — don't skip this step just because both worktrees individually reported passing tests.
 
-Use the Human Check-In Queries (Section 6) on *each* worktree separately before merging, plus one more afterward: *"Run the full integration suite against the merged branch and report any contract mismatches between the frontend and backend changes."*
+### 8.4 Before considering any multi-track round done
+
+Use the Human Check-In Queries (Section 6) on *each* worktree separately before merging, plus one more afterward, generalized beyond two tracks: *"Run the full integration suite against the merged branch and report any contract mismatches or regressions across [list every track that merged in this round]."* The more tracks that merged in one round, the more this final pass matters — it's the only step that catches interactions between tracks that individually looked fine.
 
 ## 9. Pausing and Resuming Work
 

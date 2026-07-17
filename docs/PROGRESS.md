@@ -1,12 +1,12 @@
 # RoomFinder SaaS — Project Progress
 
-**Last updated:** 2026-07-17 — Session 16: Plan v2.9 — subscription payment gate (§1.5), analytics isolation fix + zero-state tests (§1.6), customer images endpoint (§1.7).
+**Last updated:** 2026-07-17 — Session 17: Plan v2.9 §1.7 frontend — customer images UI in admin console (expandable row panel, type picker, thumbnail grid, file upload).
 
 ---
 
 ## RESUME POINT — read this first in the next session
 
-**Working from:** Plan v2.9. All Phase 3 items complete. All v2.9 bug fixes and new scope complete.
+**Working from:** Plan v2.9. All §1.5, §1.6, §1.7 (backend + frontend) complete. Phase 3 complete.
 
 **Facebook OAuth is code-complete but not end-to-end testable yet:**
 - Actual OAuth will fail until real Meta App credentials are in `apps/backend/.env`:
@@ -18,9 +18,9 @@
 - Also required: Valid OAuth Redirect URI = `http://localhost:3000/facebook/callback` in Meta App dashboard.
 
 **All tests green at session end:**
-- Backend: 150 passing, 25 suites (up from 141/23)
-- Admin console: 21 passing, 4 suites
-- Git: clean master branch
+- Backend: 150 passing, 25 suites
+- Admin console: 21 passing, 4 suites (TypeScript: 0 errors)
+- Git: all changes committed, master branch clean
 
 **Next:** Phase 4 planning (Plan Section 9) — pilot onboarding prep. No known code defects outstanding.
 
@@ -164,7 +164,8 @@
 
 - [x] §1.5 — Subscription plan changes payment-gated: `subscribe()` throws `BadRequestException` for paid-plan upgrades/new subscriptions (must use `/payments/subscription-intent`); free tier applies immediately; paid downgrade sets `pendingPlanId` for next billing cycle. Migration `1752500000000-AddPendingPlanToSubscriptions`. `applyPendingPlan()` helper added to service. 6 new tests (was 9 subscription tests, now 15).
 - [x] §1.6 — Analytics isolation bug fixed: raw QueryBuilder `p.tenantId` → `p.tenant_id` (TypeORM doesn't translate property names in string WHERE clauses). Zero-state analytics test added: 3 tests asserting every count = 0 for empty tenant and that tenantId is passed to every scoped query.
-- [x] §1.7 — Customer images: migration `1752500001000-CreateCustomerImages`, `CustomerImage` entity (tenant_id, customer_id, url, type, sort_order), `POST /customers/:id/images` + `GET /customers/:id/images` endpoints mirroring listing images exactly. StorageModule imported into CustomersModule. 3 tests: upload success, cross-tenant 404, type defaults to 'other'.
+- [x] §1.7 — Customer images (backend): migration `1752500001000-CreateCustomerImages`, `CustomerImage` entity (tenant_id, customer_id, url, type, sort_order), `POST /customers/:id/images` + `GET /customers/:id/images` endpoints mirroring listing images exactly. StorageModule imported into CustomersModule. 3 tests: upload success, cross-tenant 404, type defaults to 'other'.
+- [x] §1.7 — Customer images (frontend): `api/customers.ts` + `fetchCustomerImages`/`uploadCustomerImages`. `CustomersPage` expandable row panel per customer — type picker (other/profile_photo/id_document), thumbnail grid with type label overlay, hidden file input, upload mutation with error display. `DataTable` extended with `expandedRow`/`renderExpanded` props (React.Fragment, colSpan row). TypeScript: 0 errors. SubscriptionPage rewrite (§1.5 frontend) + api/subscriptions.ts also committed this session.
 
 ## Phase 2 — Core SaaS Hardening (in progress)
 
