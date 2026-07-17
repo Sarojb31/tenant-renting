@@ -7,9 +7,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,7 +24,10 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly config: ConfigService,
+  ) {}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
@@ -60,5 +65,43 @@ export class PaymentsController {
     const signature = stripeSig ?? '';
     await this.paymentsService.handleWebhookEvent(gw, body, rawBody, signature);
     return { received: true };
+  }
+
+  @Post('callback/esewa')
+  async handleEsewaCallback(
+    @Body() body: { data?: string } & Record<string, unknown>,
+    @Req() req: Request & { rawBody?: Buffer },
+    @Res() res: Response,
+  ) {
+    const customerAppUrl =
+      this.config.get<string>('app.customerAppBaseUrl') ?? 'http://localhost:5173';
+    try {
+      let payload: unknown = body;
+      // eSewa v3 sends base64-encoded JSON in `data` field
+      if (body.data && typeof body.data === 'string') {
+        payload = JSON.parse(Buffer.from(body.data, 'base64').toString('utf-8'));
+      }
+      const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(payload));
+      await this.paymentsService.handleWebhookEvent(PaymentGateway.ESEWA, payload, rawBody, '');
+      return res.redirect(`${customerAppUrl}/payment/success`);
+    } catch {
+      return res.redirect(`${customerAppUrl}/payment/failed`);
+    }
+  }
+
+  @Get('callback/khalti')
+  async handleKhaltiCallback(
+    @Query() query: Record<string, string>,
+    @Res() res: Response,
+  ) {
+    const customerAppUrl =
+      this.config.get<string>('app.customerAppBaseUrl') ?? 'http://localhost:5173';
+    try {
+      const rawBody = Buffer.from(JSON.stringify(query));
+      await this.paymentsService.handleWebhookEvent(PaymentGateway.KHALTI, query, rawBody, '');
+      return res.redirect(`${customerAppUrl}/payment/success`);
+    } catch {
+      return res.redirect(`${customerAppUrl}/payment/failed`);
+    }
   }
 }

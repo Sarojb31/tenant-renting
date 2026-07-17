@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { BookingPage } from './pages/BookingPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { PaymentSuccessPage } from './pages/PaymentSuccessPage';
+import { PaymentFailedPage } from './pages/PaymentFailedPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -29,6 +30,7 @@ function App() {
         element={<ProtectedRoute><PaymentPage /></ProtectedRoute>}
       />
       <Route path="/payment/success" element={<PaymentSuccessPage />} />
+      <Route path="/payment/failed" element={<PaymentFailedPage />} />
       <Route
         path="/profile"
         element={<ProtectedRoute><ProfilePage /></ProtectedRoute>}

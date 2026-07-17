@@ -41,7 +41,7 @@ export class KhaltiAdapter implements PaymentProvider {
     const { data } = await axios.post<KhaltiInitiateResponse>(
       `${this.baseUrl}/api/v2/epayment/initiate/`,
       {
-        return_url: `${appBaseUrl}/payments/webhook/khalti`,
+        return_url: `${appBaseUrl}/payments/callback/khalti`,
         website_url: appBaseUrl,
         amount: Math.round(amount * 100),
         purchase_order_id: String(metadata.bookingId ?? ''),
