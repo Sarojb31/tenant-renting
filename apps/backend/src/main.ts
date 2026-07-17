@@ -22,6 +22,17 @@ async function bootstrap() {
   const allowedOrigins = [
     process.env.CUSTOMER_APP_BASE_URL || 'http://localhost:5173',
     process.env.ADMIN_APP_BASE_URL || 'http://localhost:5174',
+    // allow LAN access during development
+    ...(process.env.NODE_ENV !== 'production'
+      ? [
+          ...(process.env.LAN_IP
+            ? [
+                `http://${process.env.LAN_IP}:5173`,
+                `http://${process.env.LAN_IP}:5174`,
+              ]
+            : []),
+        ]
+      : []),
   ];
   app.enableCors({
     origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin)),
@@ -41,7 +52,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 }
 
 bootstrap();
